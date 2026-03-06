@@ -86,4 +86,16 @@ struct VectorDeclNode : public DeclNode {
 	void translate(Codegen* g);
 };
 
+struct EnumDeclNode : public DeclNode {
+	std::string name;
+	std::vector<std::pair<std::string, ExprNode*>> members;
+
+	EnumDeclNode(const std::string& n) : name(n) {}
+	~EnumDeclNode() { for (auto& m : members) delete m.second; }
+
+	void proto(DeclSeq* d, Environ* e) override;
+	void semant(Environ* e) override {}
+	void translate(Codegen* g) override {}
+	void transdata(Codegen* g) override {}
+};
 #endif

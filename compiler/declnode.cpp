@@ -286,3 +286,25 @@ void VectorDeclNode::translate(Codegen* g) {
 
     if (kind == DECL_GLOBAL) g->i_data(0, "_v" + ident);
 }
+
+void EnumDeclNode::proto(DeclSeq* d, Environ* e) {
+    int val = 0;
+    for (auto& mem : members) {
+        if (mem.second) {
+            ExprNode* expr = mem.second->semant(e);
+            ConstNode* cn = expr->constNode();
+            if (!cn) ex(MultiLang::expression_must_be_constant);
+            if (expr->sem_type != Type::int_type)
+                ex(MultiLang::enum_member_must_be_integer);
+            val = cn->intValue();
+            delete expr;
+            mem.second = nullptr;
+        }
+
+        Type* ct = new ConstType(val);
+        e->types.push_back(ct);
+        if (!d->insertDecl(mem.first, ct, DECL_GLOBAL))
+            ex(MultiLang::duplicate_identifier);
+        ++val;
+    }
+}

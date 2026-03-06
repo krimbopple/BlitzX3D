@@ -16,13 +16,14 @@ struct ProgNode : public Node {
 	DeclSeqNode* structs;
 	DeclSeqNode* funcs;
 	DeclSeqNode* datas;
+	DeclSeqNode* enums;
 	StmtSeqNode* stmts;
 
 	Environ* sem_env;
 
 	std::string file_lab;
 
-	ProgNode(DeclSeqNode* c, DeclSeqNode* s, DeclSeqNode* f, DeclSeqNode* d, StmtSeqNode* ss) :consts(c), structs(s), funcs(f), datas(d), stmts(ss) {}
+	ProgNode(DeclSeqNode* c, DeclSeqNode* s, DeclSeqNode* f, DeclSeqNode* d, DeclSeqNode* e, StmtSeqNode* ss) :consts(c), structs(s), funcs(f), datas(d), enums(e), stmts(ss) {}
 	~ProgNode() {
 		delete consts;
 		delete structs;

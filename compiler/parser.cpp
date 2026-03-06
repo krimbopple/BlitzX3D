@@ -24,6 +24,7 @@ ProgNode* Parser::parse(const std::string& main, bool debug, bool preprocess) {
 	structs = new DeclSeqNode();
 	funcs = new DeclSeqNode();
 	datas = new DeclSeqNode();
+	enums = new DeclSeqNode();
 	StmtSeqNode* stmts = 0;
 
 	try {
@@ -35,7 +36,7 @@ ProgNode* Parser::parse(const std::string& main, bool debug, bool preprocess) {
 		throw;
 	}
 
-	return new ProgNode(consts, structs, funcs, datas, stmts);
+	return new ProgNode(consts, structs, funcs, datas, enums, stmts);
 }
 
 void Parser::ex(const std::string& s) {
@@ -366,6 +367,12 @@ void Parser::parseStmtSeq(StmtSeqNode* stmts, int scope, bool debug, bool prepro
 			result = new LabelNode(t, datas->size());
 		}
 		break;
+		case ENUM:
+		{
+			if (scope != STMTS_PROG) ex(MultiLang::enum_can_only_appear_in_main);
+			enums->push_back(parseEnumDecl());
+		}
+			break;
 		default:
 			return;
 		}
@@ -508,6 +515,31 @@ DeclNode* Parser::parseStructDecl() {
 	DeclNode* d = new StructDeclNode(ident, fields.release());
 	d->pos = pos; d->file = incfile;
 	return d;
+}
+
+DeclNode* Parser::parseEnumDecl() {
+	int pos = toker->pos();
+	std::string name = parseIdent();
+	std::unique_ptr<EnumDeclNode> node(new EnumDeclNode(name));
+	node->pos = pos;
+	node->file = incfile;
+
+	while (toker->curr() == '\n') toker->next();
+
+	while (toker->curr() != ENDENUM) {
+		std::string mem = parseIdent();
+		ExprNode* expr = nullptr;
+		if (toker->curr() == '=') {
+			toker->next();
+			expr = parseExpr(false);
+		}
+		node->members.emplace_back(mem, expr);
+
+		while (toker->curr() == '\n' || toker->curr() == ',')
+			toker->next();
+	}
+	toker->next();
+	return node.release();
 }
 
 IfNode* Parser::parseIf(bool debug, bool preprocess) {

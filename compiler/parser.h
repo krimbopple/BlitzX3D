@@ -25,6 +25,7 @@ private:
 	DeclSeqNode* structs;
 	DeclSeqNode* funcs;
 	DeclSeqNode* datas;
+	DeclSeqNode* enums;
 
 	StmtSeqNode* parseStmtSeq(int scope, bool debug, bool preprocess);
 	void parseStmtSeq(StmtSeqNode* stmts, int scope, bool debug, bool preprocess);
@@ -44,6 +45,7 @@ private:
 	DimNode* parseArrayDecl();
 	DeclNode* parseFuncDecl(bool debug, bool preprocess);
 	DeclNode* parseStructDecl();
+	DeclNode* parseEnumDecl();
 
 	ExprSeqNode* parseExprSeq();
 

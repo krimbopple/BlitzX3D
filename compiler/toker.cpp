@@ -68,6 +68,9 @@ static void makeKeywords()
     alphaTokes["Str"] = BBSTR;
     alphaTokes["Include"] = INCLUDE;
 
+    alphaTokes["Enum"] = ENUM;
+    alphaTokes["End Enum"] = ENDENUM;
+
     alphaTokes["New"] = BBNEW;
     alphaTokes["Delete"] = BBDELETE;
     alphaTokes["First"] = FIRST;

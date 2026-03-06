@@ -16,6 +16,7 @@ Environ* ProgNode::semant(Environ* e) {
 
 	structs->proto(env->typeDecls, env.get());
 	consts->proto(env->decls, env.get());
+	enums->proto(env->decls, env.get());
 	structs->semant(env.get());
 	funcs->proto(env->funcDecls, env.get());
 	stmts->semant(env.get());

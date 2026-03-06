@@ -235,3 +235,7 @@ static constexpr const char* macro_exceeded = "Macro expansion depth exceeded";
 static constexpr const char* unsupported_operator = "Unsupported operator: {0}";
 static constexpr const char* expression_evaluation_resulted_in_no_value = "Expression evaluation resulted in no value";
 static constexpr const char* invalid_macro_string = "Invalid macro string";
+
+// krim blitz3d garbo 
+static constexpr const char* enum_member_must_be_integer = "Enum number must be integer";
+static constexpr const char* enum_can_only_appear_in_main = "\"Enum\" can only appear in main program";

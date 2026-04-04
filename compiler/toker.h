@@ -66,6 +66,10 @@ private:
 	void nextline();
 	bool isValidIdentifier(const std::string& str);
 	int curr_row, curr_toke;
+
+	std::vector<ConditionalState> conditionalStack;
+	bool skipLine;
+	bool noMacro;
 };
 
 #endif

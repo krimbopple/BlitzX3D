@@ -17,10 +17,10 @@ struct PreprocessorOps {
 
 bool isNumber(const std::string& s);
 
-PreprocessorOps&& evaluateOperation(const PreprocessorOps& lhs, const PreprocessorOps& rhs, const std::string& op);
+PreprocessorOps evaluateOperation(const PreprocessorOps& lhs, const PreprocessorOps& rhs, const std::string& op);
 
 bool evaluateExpression(const std::string& expr);
 
-PreprocessorOps&& processToken(const std::string& token);
+PreprocessorOps processToken(const std::string& token);
 
 #endif // EXPRESSION_EVALUATOR_H

@@ -8,10 +8,33 @@
 #define CHKPOS(x, func) if(x < 0) ErrorLog(func, MultiLang::string_parameter_positive);
 #define CHKOFF(x, func) if(x <= 0) ErrorLog(func, MultiLang::string_parameter_greater);
 
-BBStr* bbString(BBStr* s, int n) {
-	BBStr* t = new BBStr();
-	while (n-- > 0) *t += *s;
-	delete s; return t;
+BBStr* bbString(BBStr * s, int n) {
+	if (n <= 0) {
+		delete s;
+		return new BBStr();
+	}
+
+	BBStr* result = new BBStr();
+	size_t len = s->size();
+	size_t total = len * n;
+
+	result->reserve(total);
+
+	BBStr temp(*s);
+	BBStr* src = &temp;
+
+	while (n > 0) {
+		if (n & 1) {
+			result->append(*src);
+		}
+		if (n > 1) {
+			src->append(*src);
+		}
+		n >>= 1;
+	}
+
+	delete s;
+	return result;
 }
 
 BBStr* bbLeft(BBStr* s, int n) {

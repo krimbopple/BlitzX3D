@@ -41,7 +41,7 @@ static int gx_driver;	//Current graphics driver index.
 static bool filter;
 static bool auto_dirty;
 static bool auto_midhandle;
-static std::set<bbImage*> image_set;
+static std::unordered_set<bbImage*> image_set;
 static int curs_x, curs_y;
 static gxCanvas* p_canvas;
 

@@ -30,9 +30,9 @@ extern gxFileSystem* gx_filesys;
 static int tri_count;
 static World* world;
 
-static std::set<Brush*> brush_set;
-static std::set<Texture*> texture_set;
-static std::set<Entity*> entity_set;
+static std::unordered_set<Brush*> brush_set;
+static std::unordered_set<Texture*> texture_set;
+static std::unordered_set<Entity*> entity_set;
 
 static Listener* listener;
 

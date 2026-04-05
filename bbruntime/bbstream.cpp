@@ -2,7 +2,7 @@
 #include "bbstream.h"
 #include "../MultiLang/MultiLang.h"
 
-static std::set<bbStream*> stream_set;
+static std::unordered_set<bbStream*> stream_set;
 
 void debugStream(bbStream* s, const char* function) {
 	if (stream_set.count(s)) return;

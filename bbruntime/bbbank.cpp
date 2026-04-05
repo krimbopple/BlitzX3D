@@ -9,8 +9,7 @@ struct bbBank {
 
 	bbBank(int sz) :size(sz) {
 		capacity = (size + 15) & ~15;
-		data = new char[capacity];
-		memset(data, 0, size);
+		data = new char[capacity]();
 	}
 	virtual ~bbBank() {
 		delete[] data;

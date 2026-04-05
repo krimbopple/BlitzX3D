@@ -3,6 +3,7 @@
 #include "bbinput.h"
 #include "../gxruntime/gxutf8.h"
 #include "../MultiLang/MultiLang.h"
+#include <algorithm>
 
 gxGraphics* gx_graphics;
 gxCanvas* gx_canvas;
@@ -160,18 +161,58 @@ static gxCanvas* tformCanvas(gxCanvas* c, float m[2][2], int x_handle, int y_han
     t->setHandle(-minx, -miny);
     t->setMask(c->getMask());
 
+    if (fabs(m[0][0] - 1.0f) < 0.001f && fabs(m[1][1] - 1.0f) < 0.001f &&
+        fabs(m[0][1]) < 0.001f && fabs(m[1][0]) < 0.001f &&
+        fabs(minx - (int)minx) < 0.001f && fabs(miny - (int)miny) < 0.001f) {
+        t->blit(0, 0, c, -(int)minx, -(int)miny, c->getWidth(), c->getHeight(), true);
+        return t;
+    }
+
     c->lock();
     t->lock();
 
-    v.y = miny + .5f;
-    for (int y = 0; y < ih; ++v.y, ++y)
-    {
-        v.x = minx + .5f;
-        for (int x = 0; x < iw; ++v.x, ++x)
-        {
-            vec2 q = vrot(i, v);
-            unsigned rgb = filter ? getPixel(c, q.x + ox, q.y + oy) : c->getPixel(floor(q.x + ox), floor(q.y + oy));
-            t->setPixel(x, y, rgb);
+    int srcW = c->getWidth(), srcH = c->getHeight();
+    int dstW = t->getWidth(), dstH = t->getHeight();
+
+    const int SHIFT = 16;
+    const int ONE = 1 << SHIFT;
+
+    for (int y = 0; y < dstH; ++y) {
+        float fy = miny + y + 0.5f;
+        for (int x = 0; x < dstW; ++x) {
+            float fx = minx + x + 0.5f;
+            float sx = i[0][0] * (fx - ox) + i[0][1] * (fy - oy);
+            float sy = i[1][0] * (fx - ox) + i[1][1] * (fy - oy);
+
+            int ix = (int)floor(sx);
+            int iy = (int)floor(sy);
+            float fxfrac = sx - ix;
+            float fyfrac = sy - iy;
+
+            unsigned color;
+            if (filter && ix >= 0 && ix < srcW - 1 && iy >= 0 && iy < srcH - 1) {
+                int w1 = (int)((1.0f - fxfrac) * (1.0f - fyfrac) * ONE);
+                int w2 = (int)(fxfrac * (1.0f - fyfrac) * ONE);
+                int w3 = (int)((1.0f - fxfrac) * fyfrac * ONE);
+                int w4 = (int)(fxfrac * fyfrac * ONE);
+                unsigned c00 = c->getPixelFast(ix, iy);
+                unsigned c10 = c->getPixelFast(ix + 1, iy);
+                unsigned c01 = c->getPixelFast(ix, iy + 1);
+                unsigned c11 = c->getPixelFast(ix + 1, iy + 1);
+                int r = ((c00 >> 16) & 0xFF) * w1 + ((c10 >> 16) & 0xFF) * w2 + ((c01 >> 16) & 0xFF) * w3 + ((c11 >> 16) & 0xFF) * w4;
+                int g = ((c00 >> 8) & 0xFF) * w1 + ((c10 >> 8) & 0xFF) * w2 + ((c01 >> 8) & 0xFF) * w3 + ((c11 >> 8) & 0xFF) * w4;
+                int b = (c00 & 0xFF) * w1 + (c10 & 0xFF) * w2 + (c01 & 0xFF) * w3 + (c11 & 0xFF) * w4;
+                r = (r >> SHIFT) & 0xFF;
+                g = (g >> SHIFT) & 0xFF;
+                b = (b >> SHIFT) & 0xFF;
+                color = (r << 16) | (g << 8) | b;
+            }
+            else {
+                if (ix < 0) ix = 0; else if (ix >= srcW) ix = srcW - 1;
+                if (iy < 0) iy = 0; else if (iy >= srcH) iy = srcH - 1;
+                color = c->getPixelFast(ix, iy);
+            }
+            t->setPixelFast(x, y, color);
         }
     }
 

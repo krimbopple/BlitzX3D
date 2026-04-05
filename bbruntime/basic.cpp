@@ -3,6 +3,7 @@
 #include "../MultiLang/MultiLang.h"
 #include "bbruntime.h"
 #include <unordered_map>
+#include <charconv>
 
 //how many strings allocated
 static int stringCnt;
@@ -487,21 +488,35 @@ void _bbRestore(BBData* data) {
 
 int _bbReadInt() {
 	switch (dataPtr->fieldType) {
-	case BBTYPE_END:ErrorLog("ReadInt", MultiLang::out_of_data); return 0;
-	case BBTYPE_INT:return dataPtr++->field.INT;
-	case BBTYPE_FLT:return dataPtr++->field.FLT;
-	case BBTYPE_CSTR:return atoi(dataPtr++->field.CSTR);
-	default:ErrorLog("ReadInt", MultiLang::bad_data_type); return 0;
+	case BBTYPE_END: ErrorLog("ReadInt", MultiLang::out_of_data); return 0;
+	case BBTYPE_INT: return dataPtr++->field.INT;
+	case BBTYPE_FLT: return (int)dataPtr++->field.FLT;
+	case BBTYPE_CSTR: {
+		const char* str = dataPtr++->field.CSTR;
+		int value;
+		auto [ptr, ec] = std::from_chars(str, str + strlen(str), value);
+		if (ec == std::errc()) return value;
+		ErrorLog("ReadInt", MultiLang::bad_data_type);
+		return 0;
+	}
+	default: ErrorLog("ReadInt", MultiLang::bad_data_type); return 0;
 	}
 }
 
 float _bbReadFloat() {
 	switch (dataPtr->fieldType) {
-	case BBTYPE_END:ErrorLog("ReadFloat", MultiLang::out_of_data); return 0;
-	case BBTYPE_INT:return dataPtr++->field.INT;
-	case BBTYPE_FLT:return dataPtr++->field.FLT;
-	case BBTYPE_CSTR:return atof(dataPtr++->field.CSTR);
-	default:ErrorLog("ReadFloat", MultiLang::bad_data_type); return 0;
+	case BBTYPE_END: ErrorLog("ReadFloat", MultiLang::out_of_data); return 0;
+	case BBTYPE_INT: return (float)dataPtr++->field.INT;
+	case BBTYPE_FLT: return dataPtr++->field.FLT;
+	case BBTYPE_CSTR: {
+		const char* str = dataPtr++->field.CSTR;
+		float value;
+		auto [ptr, ec] = std::from_chars(str, str + strlen(str), value);
+		if (ec == std::errc()) return value;
+		ErrorLog("ReadFloat", MultiLang::bad_data_type);
+		return 0.0f;
+	}
+	default: ErrorLog("ReadFloat", MultiLang::bad_data_type); return 0;
 	}
 }
 

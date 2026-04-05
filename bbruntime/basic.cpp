@@ -2,6 +2,7 @@
 #include "bbsys.h"
 #include "../MultiLang/MultiLang.h"
 #include "bbruntime.h"
+#include <unordered_map>
 
 //how many strings allocated
 static int stringCnt;
@@ -34,8 +35,8 @@ static BBStr usedStrs, freeStrs;
 static int next_handle;
 
 //object<->handle maps
-static std::map<int, BBObj*> handle_map;
-static std::map<BBObj*, int> object_map;
+static std::unordered_map<int, BBObj*> handle_map;
+static std::unordered_map<BBObj*, int> object_map;
 
 static BBType _bbIntType(BBTYPE_INT);
 static BBType _bbFltType(BBTYPE_FLT);
@@ -158,8 +159,7 @@ BBStr* _bbStrConst(const char* s) {
 }
 
 void* _bbVecAlloc(BBVecType* type) {
-	void* vec = bbMalloc(type->size * 4);
-	memset(vec, 0, type->size * 4);
+	void* vec = calloc(type->size, 4);
 	return vec;
 }
 
@@ -211,8 +211,7 @@ void _bbDimArray(BBArray* array) {
 		array->scales[k] *= array->scales[k - 1];
 	}
 	int size = array->scales[array->dims - 1];
-	array->data = bbMalloc(size * 4);
-	memset(array->data, 0, size * 4);
+	array->data = calloc(size, 4);
 }
 
 void _bbArrayBoundsEx(const char* function) {
@@ -278,7 +277,7 @@ void _bbObjDelete(BBObj* obj) {
 			break;
 		}
 	}
-	std::map<BBObj*, int>::iterator it = object_map.find(obj);
+	auto it = object_map.find(obj);
 	if (it != object_map.end()) {
 		handle_map.erase(it->second);
 		object_map.erase(it);
@@ -463,7 +462,7 @@ BBStr* _bbObjToStr(BBObj* obj) {
 
 int _bbObjToHandle(BBObj* obj) {
 	if (!obj || !obj->fields) return 0;
-	std::map<BBObj*, int>::const_iterator it = object_map.find(obj);
+	auto it = object_map.find(obj);
 	if (it != object_map.end()) return it->second;
 	++next_handle;
 	object_map[obj] = next_handle;
@@ -472,7 +471,7 @@ int _bbObjToHandle(BBObj* obj) {
 }
 
 BBObj* _bbObjFromHandle(int handle, BBObjType* type) {
-	std::map<int, BBObj*>::const_iterator it = handle_map.find(handle);
+	auto it = handle_map.find(handle);
 	if (it == handle_map.end()) return 0;
 	BBObj* obj = it->second;
 	return obj->type == type ? obj : 0;

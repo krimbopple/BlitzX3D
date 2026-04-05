@@ -291,7 +291,7 @@ void Toker::nextline()
                 return;
             }
 
-            if (line == "#if\n" || line.starts_with("#if ")) {
+            if (line.starts_with("#if_")) {
                 std::string condition = line.substr(line.find_first_of(' ') + 1);
                 condition.pop_back();
 
@@ -318,7 +318,7 @@ void Toker::nextline()
                 return;
             }
 
-            if (line == "#elseif\n" || line.starts_with("#elseif ")) {
+            if (line.starts_with("#elseif_")) {
                 if (conditionalStack.empty()) {
                     throw Ex(MultiLang::elseif_without_if, pos(), inc_file);
                     skipLine = true;
@@ -358,7 +358,7 @@ void Toker::nextline()
                 return;
             }
 
-            if (line == "#else\n" || line.starts_with("#else ")) {
+            if (line.starts_with("#else_")) {
                 if (conditionalStack.empty()) {
                     throw Ex(MultiLang::else_without_if_macro, pos(), inc_file);
                     skipLine = true;
@@ -375,7 +375,7 @@ void Toker::nextline()
                 return;
             }
 
-            if (line == "#endif\n" || line.starts_with("#endif ")) {
+            if (line.starts_with("#endif_")) {
                 if (!conditionalStack.empty()) {
                     conditionalStack.pop_back();
                     if (!conditionalStack.empty()) {

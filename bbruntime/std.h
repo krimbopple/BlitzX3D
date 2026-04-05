@@ -14,7 +14,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-
+#include <unordered_set>
 #include <cmath>
 
 #define ErrorLog(function, log) if (debug) { RTEX(log) } else { errorfunc = function; errorlog = log; }

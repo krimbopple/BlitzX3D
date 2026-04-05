@@ -43,7 +43,7 @@ static bool filter;
 static int tform_method = 2; // 0 = nearest, 1 = bilinear, 2 = bicubic
 static bool auto_dirty;
 static bool auto_midhandle;
-static std::set<bbImage*> image_set;
+static std::unordered_set<bbImage*> image_set;
 static int curs_x, curs_y;
 static gxCanvas* p_canvas;
 

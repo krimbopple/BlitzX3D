@@ -25,9 +25,9 @@ class UDPStream;
 class TCPStream;
 class TCPServer;
 
-static std::set<UDPStream*> udp_set;
-static std::set<TCPStream*> tcp_set;
-static std::set<TCPServer*> server_set;
+static std::unordered_set<UDPStream*> udp_set;
+static std::unordered_set<TCPStream*> tcp_set;
+static std::unordered_set<TCPServer*> server_set;
 
 class UDPStream : public bbStream {
 public:

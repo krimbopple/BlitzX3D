@@ -98,11 +98,10 @@ static std::string quickHelp(const std::string& kw) {
 static void dumpKeys(bool lang, bool mod, bool help) {
 
 	if (lang) {
-		std::map<std::string, int>::iterator it;
-		std::map<std::string, int>& keywords = Toker::getKeywords();
-		for (it = keywords.begin(); it != keywords.end(); ++it) {
-			if (it->first.find(' ') != std::string::npos) continue;
-			std::cout << it->first << std::endl;
+		auto& keywords = Toker::getKeywords();
+		for (const auto& pair : keywords) {
+			if (pair.first.find(' ') != std::string::npos) continue;
+			std::cout << pair.first << std::endl;
 		}
 	}
 

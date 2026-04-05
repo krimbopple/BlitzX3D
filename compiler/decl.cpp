@@ -20,17 +20,14 @@ DeclSeq::~DeclSeq() {
 }
 
 Decl* DeclSeq::findDecl(const std::string& s) {
-    std::vector<Decl*>::iterator it;
-    for (it = decls.begin(); it != decls.end(); ++it) {
-        if ((*it)->name == s) return *it;
-    }
-    return 0;
+    auto it = declMap.find(s);
+    return (it != declMap.end()) ? it->second : nullptr;
 }
 
 Decl* DeclSeq::findDecl(const std::string& s, int params) {
-    Decl* decl = this->findDecl(s);
+    Decl* decl = findDecl(s);
     if (OverrideFunctionMap.contains(s)) {
-        if ((decl != 0) && (decl->type->funcType()->params->size() == params)) return decl;
+        if (decl && decl->type->funcType()->params->size() == params) return decl;
         std::string&& d = "";
         std::vector<OverrideFunction>::iterator it;
         for (it = OverrideFunctionMap[s].begin(); it != OverrideFunctionMap[s].end(); ++it)
@@ -68,13 +65,18 @@ Decl* DeclSeq::insertDecl(const std::string& s, Type* t, int kind, ConstType* d)
             }
             Decl* decl = new Decl(uniqueFunctionName, t, kind, d);
             OverrideFunctionMap[s].push_back(OverrideFunction(uniqueFunctionName, requiredParameters, func->params->size() - requiredParameters));
+            declMap[uniqueFunctionName] = decl;
             decls.push_back(decl);
             return decls.back();
         }
-        decls.push_back(new Decl(s, t, kind, d));
+        Decl* decl = new Decl(s, t, kind, d);
+        declMap[s] = decl;
+        decls.push_back(decl);
         return decls.back();
     }
     if (findDecl(s)) return 0;
-    decls.push_back(new Decl(s, t, kind, d));
+    Decl* decl = new Decl(s, t, kind, d);
+    declMap[s] = decl;
+    decls.push_back(decl);
     return decls.back();
 }

@@ -40,6 +40,7 @@ private:
 static int gx_driver;	//Current graphics driver index.
 
 static bool filter;
+static int tform_method = 2; // 0 = nearest, 1 = bilinear, 2 = bicubic
 static bool auto_dirty;
 static bool auto_midhandle;
 static std::set<bbImage*> image_set;
@@ -136,6 +137,17 @@ static float vmax(float a, float b, float c, float d)
     float t = a; if (b > t) t = b; if (c > t) t = c; if (d > t) t = d; return t;
 }
 
+static float cubic_weight(float t, float a = -0.5f) {
+    t = fabsf(t);
+    if (t < 1.0f) {
+        return ((a + 2.0f) * t - (a + 3.0f)) * t * t + 1.0f;
+    }
+    else if (t < 2.0f) {
+        return ((a * t - 5.0f * a) * t + 8.0f * a) * t - 4.0f * a;
+    }
+    return 0.0f;
+}
+
 static gxCanvas* tformCanvas(gxCanvas* c, float m[2][2], int x_handle, int y_handle)
 {
 
@@ -190,7 +202,12 @@ static gxCanvas* tformCanvas(gxCanvas* c, float m[2][2], int x_handle, int y_han
             float fyfrac = sy - iy;
 
             unsigned color;
-            if (filter && ix >= 0 && ix < srcW - 1 && iy >= 0 && iy < srcH - 1) {
+            if (!filter) {
+                if (ix < 0) ix = 0; else if (ix >= srcW) ix = srcW - 1;
+                if (iy < 0) iy = 0; else if (iy >= srcH) iy = srcH - 1;
+                color = c->getPixelFast(ix, iy);
+            }
+            else if (tform_method == 1) {
                 int w1 = (int)((1.0f - fxfrac) * (1.0f - fyfrac) * ONE);
                 int w2 = (int)(fxfrac * (1.0f - fyfrac) * ONE);
                 int w3 = (int)((1.0f - fxfrac) * fyfrac * ONE);
@@ -206,6 +223,41 @@ static gxCanvas* tformCanvas(gxCanvas* c, float m[2][2], int x_handle, int y_han
                 g = (g >> SHIFT) & 0xFF;
                 b = (b >> SHIFT) & 0xFF;
                 color = (r << 16) | (g << 8) | b;
+            }
+            else if (tform_method == 2) {
+                float r = 0.0f, g = 0.0f, b = 0.0f, total_w = 0.0f;
+                for (int dy = -1; dy <= 2; ++dy) {
+                    int yi = iy + dy;
+                    if (yi < 0) yi = 0;
+                    if (yi >= srcH) yi = srcH - 1;
+                    float wy = cubic_weight(fyfrac - dy);
+                    if (wy == 0.0f) continue;
+                    for (int dx = -1; dx <= 2; ++dx) {
+                        int xi = ix + dx;
+                        if (xi < 0) xi = 0;
+                        if (xi >= srcW) xi = srcW - 1;
+                        float wx = cubic_weight(fxfrac - dx);
+                        float w = wx * wy;
+                        if (w == 0.0f) continue;
+                        unsigned pix = c->getPixelFast(xi, yi);
+                        r += ((pix >> 16) & 0xFF) * w;
+                        g += ((pix >> 8) & 0xFF) * w;
+                        b += (pix & 0xFF) * w;
+                        total_w += w;
+                    }
+                }
+                if (total_w > 0.0f) {
+                    int rr = (int)(r / total_w + 0.5f);
+                    int gg = (int)(g / total_w + 0.5f);
+                    int bb = (int)(b / total_w + 0.5f);
+                    if (rr < 0) rr = 0; else if (rr > 255) rr = 255;
+                    if (gg < 0) gg = 0; else if (gg > 255) gg = 255;
+                    if (bb < 0) bb = 0; else if (bb > 255) bb = 255;
+                    color = (rr << 16) | (gg << 8) | bb;
+                }
+                else {
+                    color = 0; // this should never happen and if it does the world will explode
+                }
             }
             else {
                 if (ix < 0) ix = 0; else if (ix >= srcW) ix = srcW - 1;
@@ -1185,6 +1237,11 @@ void bbTFormImage(bbImage* i, float a, float b, float c, float d)
     }
 }
 
+void bbSetTFormMethod(int method) {
+    if (method < 0 || method > 2) method = 1;
+    tform_method = method;
+}
+
 void bbScaleImage(bbImage* i, float w, float h)
 {
     debugImage(i, "ScaleImage");
@@ -1596,6 +1653,7 @@ void graphics_link(void (*rtSym)(const char* sym, void* pc))
     rtSym("ResizeImage%image#width#height", bbResizeImage);
     rtSym("RotateImage%image#angle", bbRotateImage);
     rtSym("TFormImage%image#a#b#c#d", bbTFormImage);
+    rtSym("SetTFormMethod%method", bbSetTFormMethod);
     rtSym("TFormFilter%enable", bbTFormFilter);
 
     rtSym("%ImagesOverlap%image1%x1%y1%image2%x2%y2", bbImagesOverlap);

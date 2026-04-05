@@ -6,6 +6,7 @@
 #define TOKER_H
 
 #include <vector>
+#include <unordered_map>
 
 enum {
 	DIM = 0x8000, GOTO, GOSUB, EXIT, RETURN,
@@ -45,7 +46,7 @@ public:
 
 	static int chars_toked;
 
-	static std::map<std::string, int>& getKeywords();
+	static std::unordered_map<std::string, int>& getKeywords();
 
 private:
 	struct Toke {

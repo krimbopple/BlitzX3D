@@ -9,8 +9,9 @@
 #include "../../MultiLang/MultiLang.h"
 
 #include <iomanip>
+#include <unordered_map>
 
-typedef std::map<std::string, Inst*> InstMap;
+typedef std::unordered_map<std::string, Inst*> InstMap;
 typedef InstMap::value_type InstPair;
 typedef InstMap::const_iterator InstIter;
 
@@ -19,9 +20,9 @@ static InstMap instMap;
 Assem_x86::Assem_x86(std::istream& in, Module* mod) :Assem(in, mod) {
 
 	//build instruction map, if not built already.
-	if(!instMap.size()) {
-		for(int k = 0; !insts[k].name || insts[k].name[0]; ++k) {
-			if(insts[k].name) instMap.insert(InstPair(insts[k].name, &insts[k]));
+	if (!instMap.size()) {
+		for (int k = 0; !insts[k].name || insts[k].name[0]; ++k) {
+			if (insts[k].name) instMap[insts[k].name] = &insts[k];
 		}
 	}
 }

@@ -140,6 +140,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="arena.cpp" />
     <ClCompile Include="assem_x86\asm_insts.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../std.h</PrecompiledHeaderFile>
@@ -190,6 +191,7 @@
     <ClCompile Include="varnode.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="arena.h" />
     <ClInclude Include="assem.h" />
     <ClInclude Include="assem_x86\assem_x86.h" />
     <ClInclude Include="assem_x86\insts.h" />

@@ -2,6 +2,8 @@
 #define DECLNODE_H
 
 struct DeclNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	int pos;
 	std::string file;
 	DeclNode() :pos(-1) {}
@@ -12,6 +14,8 @@ struct DeclNode : public Node {
 };
 
 struct DeclSeqNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	std::vector<DeclNode*> decls;
 	DeclSeqNode() {}
 	~DeclSeqNode() { for(; decls.size(); decls.pop_back())delete decls.back(); }

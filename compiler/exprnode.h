@@ -6,6 +6,8 @@
 struct ConstNode;	//is constant int,float or string
 
 struct ExprNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	Type* sem_type;
 	ExprNode() :sem_type(0) {}
 	ExprNode(Type* t) :sem_type(t) {}
@@ -18,6 +20,8 @@ struct ExprNode : public Node {
 };
 
 struct ExprSeqNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	std::vector<ExprNode*> exprs;
 	~ExprSeqNode() { for(; exprs.size(); exprs.pop_back()) delete exprs.back(); }
 	void push_back(ExprNode* e) { exprs.push_back(e); }

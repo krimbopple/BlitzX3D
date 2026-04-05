@@ -4,6 +4,8 @@
 #include "node.h"
 
 struct StmtNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	int pos;	//offset in source stream
 	StmtNode() :pos(-1) {}
 	void debug(int pos, Codegen* g);
@@ -13,6 +15,8 @@ struct StmtNode : public Node {
 };
 
 struct StmtSeqNode : public Node {
+	DECLARE_ARENA_ALLOCATION()
+
 	std::string file;
 	std::vector<StmtNode*> stmts;
 	StmtSeqNode(const std::string& f) :file(f) {}

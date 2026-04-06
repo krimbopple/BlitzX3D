@@ -10,12 +10,6 @@ extern "C" void* CreateD3D9DeviceStub(HWND hwnd, int width, int height);
 extern "C" void ReleaseD3D9DeviceStub(void* device);
 #endif
 
-#ifdef DX9
-#define DBGMSG(msg) MessageBoxA(NULL, msg, "Debug", MB_OK)
-#else
-#define DBGMSG(msg) ((void)0)
-#endif
-
 extern gxRuntime* gx_runtime;
 static Debugger* debugger;
 

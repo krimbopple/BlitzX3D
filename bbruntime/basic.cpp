@@ -48,6 +48,10 @@ static void* bbMalloc(int size) {
 	return malloc(size);
 }
 
+static void* bbCalloc(int count, int size) {
+	return calloc(count, size);
+}
+
 static void bbFree(void* q) {
 	free(q);
 }
@@ -160,7 +164,7 @@ BBStr* _bbStrConst(const char* s) {
 }
 
 void* _bbVecAlloc(BBVecType* type) {
-	void* vec = calloc(type->size, 4);
+	void* vec = bbCalloc(type->size, 4);
 	return vec;
 }
 
@@ -212,7 +216,7 @@ void _bbDimArray(BBArray* array) {
 		array->scales[k] *= array->scales[k - 1];
 	}
 	int size = array->scales[array->dims - 1];
-	array->data = calloc(size, 4);
+	array->data = bbCalloc(size, 4);
 }
 
 void _bbArrayBoundsEx(const char* function) {

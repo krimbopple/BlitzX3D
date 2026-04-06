@@ -60,8 +60,7 @@ gxGraphics::~gxGraphics() {
 	}
 	*/
 
-	std::set<std::string>::iterator it;
-	for (it = font_res.begin(); it != font_res.end(); ++it) RemoveFontResource((*it).c_str());
+	for (auto it = font_res.begin(); it != font_res.end(); ++it) RemoveFontResource((*it).c_str());
 	font_res.clear();
 
 	delete back_canvas;
@@ -106,14 +105,12 @@ bool gxGraphics::restore() {
 	dirDraw->RestoreAllSurfaces();
 
 	//restore all canvases
-	std::set<gxCanvas*>::iterator it;
-	for (it = canvas_set.begin(); it != canvas_set.end(); ++it) {
+	for (auto it = canvas_set.begin(); it != canvas_set.end(); ++it) {
 		(*it)->restore();
 	}
 
 	//restore all meshes (b3d surfaces)
-	std::set<gxMesh*>::iterator mesh_it;
-	for (mesh_it = mesh_set.begin(); mesh_it != mesh_set.end(); ++mesh_it) {
+	for (auto mesh_it = mesh_set.begin(); mesh_it != mesh_set.end(); ++mesh_it) {
 		(*mesh_it)->restore();
 	}
 	if (dir3d) dir3d->EvictManagedTextures();

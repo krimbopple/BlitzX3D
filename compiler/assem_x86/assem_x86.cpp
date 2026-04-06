@@ -20,9 +20,9 @@ static InstMap instMap;
 Assem_x86::Assem_x86(std::istream& in, Module* mod) :Assem(in, mod) {
 
 	//build instruction map, if not built already.
-	if (!instMap.size()) {
-		for (int k = 0; !insts[k].name || insts[k].name[0]; ++k) {
-			if (insts[k].name) instMap[insts[k].name] = &insts[k];
+	if(!instMap.size()) {
+		for(int k = 0; !insts[k].name || insts[k].name[0]; ++k) {
+			if(insts[k].name) instMap.insert(InstPair(insts[k].name, &insts[k]));
 		}
 	}
 }

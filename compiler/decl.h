@@ -14,7 +14,7 @@ struct OverrideFunction {
 	int optionalParameters;
 };
 
-static std::map<std::string, std::vector<OverrideFunction>> OverrideFunctionMap;
+static std::unordered_map<std::string, std::vector<OverrideFunction>> OverrideFunctionMap;
 
 struct Type;
 struct ConstType;
@@ -24,7 +24,7 @@ struct Decl {
 	Type* type;			//type
 	int kind, offset;
 	ConstType* defType;	//default value
-	Decl(const std::string& s, Type* t, int k, ConstType* d = 0) :name(s), type(t), kind(k), defType(d) {}
+	Decl(std::string s, Type* t, int k, ConstType* d = 0) :name(std::move(s)), type(t), kind(k), defType(d) {}
 	~Decl();
 
 	virtual void getName(char* buff);

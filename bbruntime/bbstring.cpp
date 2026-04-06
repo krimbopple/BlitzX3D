@@ -20,17 +20,8 @@ BBStr* bbString(BBStr * s, int n) {
 
 	result->reserve(total);
 
-	BBStr temp(*s);
-	BBStr* src = &temp;
-
-	while (n > 0) {
-		if (n & 1) {
-			result->append(*src);
-		}
-		if (n > 1) {
-			src->append(*src);
-		}
-		n >>= 1;
+	for (int i = 0; i < n; ++i) {
+		result->append(*s);
 	}
 
 	delete s;

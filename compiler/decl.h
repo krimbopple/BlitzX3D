@@ -1,6 +1,8 @@
 #ifndef DECL_H
 #define DECL_H
 
+#include <unordered_map>
+
 enum {
 	DECL_FUNC = 1, DECL_ARRAY = 2, DECL_STRUCT = 4,						//NOT vars
 	DECL_GLOBAL = 8, DECL_LOCAL = 16, DECL_PARAM = 32, DECL_FIELD = 64		//ARE vars
@@ -12,7 +14,7 @@ struct OverrideFunction {
 	int optionalParameters;
 };
 
-static std::map<std::string, std::vector<OverrideFunction>> OverrideFunctionMap;
+static std::unordered_map<std::string, std::vector<OverrideFunction>> OverrideFunctionMap;
 
 struct Type;
 struct ConstType;
@@ -22,7 +24,7 @@ struct Decl {
 	Type* type;			//type
 	int kind, offset;
 	ConstType* defType;	//default value
-	Decl(const std::string& s, Type* t, int k, ConstType* d = 0) :name(s), type(t), kind(k), defType(d) {}
+	Decl(std::string s, Type* t, int k, ConstType* d = 0) :name(std::move(s)), type(t), kind(k), defType(d) {}
 	~Decl();
 
 	virtual void getName(char* buff);
@@ -30,6 +32,7 @@ struct Decl {
 
 struct DeclSeq {
 	std::vector<Decl*> decls;
+	std::unordered_map<std::string, Decl*> declMap;
 	DeclSeq();
 	~DeclSeq();
 	Decl* findDecl(const std::string& s, int params);

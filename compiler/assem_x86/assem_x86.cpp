@@ -9,8 +9,9 @@
 #include "../../MultiLang/MultiLang.h"
 
 #include <iomanip>
+#include <unordered_map>
 
-typedef std::map<std::string, Inst*> InstMap;
+typedef std::unordered_map<std::string, Inst*> InstMap;
 typedef InstMap::value_type InstPair;
 typedef InstMap::const_iterator InstIter;
 

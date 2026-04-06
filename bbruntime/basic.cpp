@@ -2,6 +2,8 @@
 #include "bbsys.h"
 #include "../MultiLang/MultiLang.h"
 #include "bbruntime.h"
+#include <unordered_map>
+#include <charconv>
 
 //how many strings allocated
 static int stringCnt;
@@ -34,8 +36,8 @@ static BBStr usedStrs, freeStrs;
 static int next_handle;
 
 //object<->handle maps
-static std::map<int, BBObj*> handle_map;
-static std::map<BBObj*, int> object_map;
+static std::unordered_map<int, BBObj*> handle_map;
+static std::unordered_map<BBObj*, int> object_map;
 
 static BBType _bbIntType(BBTYPE_INT);
 static BBType _bbFltType(BBTYPE_FLT);
@@ -44,6 +46,10 @@ static BBType _bbCStrType(BBTYPE_CSTR);
 
 static void* bbMalloc(int size) {
 	return malloc(size);
+}
+
+static void* bbCalloc(int count, int size) {
+	return calloc(count, size);
 }
 
 static void bbFree(void* q) {
@@ -158,8 +164,7 @@ BBStr* _bbStrConst(const char* s) {
 }
 
 void* _bbVecAlloc(BBVecType* type) {
-	void* vec = bbMalloc(type->size * 4);
-	memset(vec, 0, type->size * 4);
+	void* vec = bbCalloc(type->size, 4);
 	return vec;
 }
 
@@ -211,8 +216,7 @@ void _bbDimArray(BBArray* array) {
 		array->scales[k] *= array->scales[k - 1];
 	}
 	int size = array->scales[array->dims - 1];
-	array->data = bbMalloc(size * 4);
-	memset(array->data, 0, size * 4);
+	array->data = bbCalloc(size, 4);
 }
 
 void _bbArrayBoundsEx(const char* function) {
@@ -278,7 +282,7 @@ void _bbObjDelete(BBObj* obj) {
 			break;
 		}
 	}
-	std::map<BBObj*, int>::iterator it = object_map.find(obj);
+	auto it = object_map.find(obj);
 	if (it != object_map.end()) {
 		handle_map.erase(it->second);
 		object_map.erase(it);
@@ -463,7 +467,7 @@ BBStr* _bbObjToStr(BBObj* obj) {
 
 int _bbObjToHandle(BBObj* obj) {
 	if (!obj || !obj->fields) return 0;
-	std::map<BBObj*, int>::const_iterator it = object_map.find(obj);
+	auto it = object_map.find(obj);
 	if (it != object_map.end()) return it->second;
 	++next_handle;
 	object_map[obj] = next_handle;
@@ -472,7 +476,7 @@ int _bbObjToHandle(BBObj* obj) {
 }
 
 BBObj* _bbObjFromHandle(int handle, BBObjType* type) {
-	std::map<int, BBObj*>::const_iterator it = handle_map.find(handle);
+	auto it = handle_map.find(handle);
 	if (it == handle_map.end()) return 0;
 	BBObj* obj = it->second;
 	return obj->type == type ? obj : 0;
@@ -488,21 +492,35 @@ void _bbRestore(BBData* data) {
 
 int _bbReadInt() {
 	switch (dataPtr->fieldType) {
-	case BBTYPE_END:ErrorLog("ReadInt", MultiLang::out_of_data); return 0;
-	case BBTYPE_INT:return dataPtr++->field.INT;
-	case BBTYPE_FLT:return dataPtr++->field.FLT;
-	case BBTYPE_CSTR:return atoi(dataPtr++->field.CSTR);
-	default:ErrorLog("ReadInt", MultiLang::bad_data_type); return 0;
+	case BBTYPE_END: ErrorLog("ReadInt", MultiLang::out_of_data); return 0;
+	case BBTYPE_INT: return dataPtr++->field.INT;
+	case BBTYPE_FLT: return (int)dataPtr++->field.FLT;
+	case BBTYPE_CSTR: {
+		const char* str = dataPtr++->field.CSTR;
+		int value;
+		auto [ptr, ec] = std::from_chars(str, str + strlen(str), value);
+		if (ec == std::errc()) return value;
+		ErrorLog("ReadInt", MultiLang::bad_data_type);
+		return 0;
+	}
+	default: ErrorLog("ReadInt", MultiLang::bad_data_type); return 0;
 	}
 }
 
 float _bbReadFloat() {
 	switch (dataPtr->fieldType) {
-	case BBTYPE_END:ErrorLog("ReadFloat", MultiLang::out_of_data); return 0;
-	case BBTYPE_INT:return dataPtr++->field.INT;
-	case BBTYPE_FLT:return dataPtr++->field.FLT;
-	case BBTYPE_CSTR:return atof(dataPtr++->field.CSTR);
-	default:ErrorLog("ReadFloat", MultiLang::bad_data_type); return 0;
+	case BBTYPE_END: ErrorLog("ReadFloat", MultiLang::out_of_data); return 0;
+	case BBTYPE_INT: return (float)dataPtr++->field.INT;
+	case BBTYPE_FLT: return dataPtr++->field.FLT;
+	case BBTYPE_CSTR: {
+		const char* str = dataPtr++->field.CSTR;
+		float value;
+		auto [ptr, ec] = std::from_chars(str, str + strlen(str), value);
+		if (ec == std::errc()) return value;
+		ErrorLog("ReadFloat", MultiLang::bad_data_type);
+		return 0.0f;
+	}
+	default: ErrorLog("ReadFloat", MultiLang::bad_data_type); return 0;
 	}
 }
 

@@ -16,23 +16,23 @@ static Debugger* debugger;
 gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs, IDirectDrawSurface7* bs, bool d3d) :
 	runtime(rt), dirDraw(dd), dir3d(0), dir3dDev(0), gfx_lost(false), dummy_mesh(0) {
 
-	MessageBoxA(NULL, "gxGraphics ctor start", "DBG", MB_OK);
+	dbg_log("gxGraphics ctor start");
 
 	dirDraw->QueryInterface(IID_IDirectDraw, (void**)&ds_dirDraw);
-	MessageBoxA(NULL, "After QueryInterface", "DBG", MB_OK);
+	dbg_log("After QueryInterface");
 
 	front_canvas = new gxCanvas(this, fs, 0);
-	MessageBoxA(NULL, "After front_canvas creation", "DBG", MB_OK);
+	dbg_log("After front_canvas creation");
 
 	back_canvas = new gxCanvas(this, bs, 0);
-	MessageBoxA(NULL, "After back_canvas creation", "DBG", MB_OK);
+	dbg_log("After back_canvas creation");
 
 	front_canvas->cls();
 	back_canvas->cls();
-	MessageBoxA(NULL, "After cls", "DBG", MB_OK);
+	dbg_log("After cls");
 
 	FT_Init_FreeType(&ftLibrary);
-	MessageBoxA(NULL, "After FreeType init", "DBG", MB_OK);
+	dbg_log("After FreeType init");
 
 	HMODULE ntdllModule = GetModuleHandleW(L"ntdll.dll");
 	running_on_wine = ntdllModule && GetProcAddress(ntdllModule, "wine_get_version");
@@ -43,14 +43,14 @@ gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs,
 	def_font = running_on_wine ? nullptr : this->loadFont(UTF8::getSystemFontFile("Courier"), 12);
 #endif
 
-	MessageBoxA(NULL, "After loadFont", "DBG", MB_OK);
+	dbg_log("After loadFont");
 
 	front_canvas->setFont(def_font);
 	back_canvas->setFont(def_font);
-	MessageBoxA(NULL, "After setFont", "DBG", MB_OK);
+	dbg_log("After setFont");
 
 #ifndef DX9
-	MessageBoxA(NULL, "Entering D3D7 init", "DBG", MB_OK);
+	dbg_log("Entering D3D7 init");
 	memset(&primFmt, 0, sizeof(primFmt));
 	primFmt.dwSize = sizeof(primFmt);
 	fs->GetPixelFormat(&primFmt);
@@ -67,13 +67,13 @@ gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs,
 	if (!_gamma) {
 		for (int k = 0; k < 256; ++k) _gammaRamp.red[k] = _gammaRamp.blue[k] = _gammaRamp.green[k] = k;
 	}
-	MessageBoxA(NULL, "D3D7 init done", "DBG", MB_OK);
+	dbg_log("D3D7 init done");
 #else
-	MessageBoxA(NULL, "DX9 mode: skipping D3D7 init", "DBG", MB_OK);
+	dbg_log("DX9 mode: skipping D3D7 init");
 	d3d9dev = nullptr;
 #endif
 
-	MessageBoxA(NULL, "gxGraphics ctor end", "DBG", MB_OK);
+	dbg_log("gxGraphics ctor end");
 }
 
 gxGraphics::~gxGraphics() {
@@ -465,10 +465,10 @@ gxScene* gxGraphics::createScene(int flags) {
 	if (!d3d9dev) {
 		d3d9dev = CreateD3D9DeviceStub(runtime->hwnd, back_canvas->getWidth(), back_canvas->getHeight());
 		if (d3d9dev) {
-			runtime->debugLog("D3D9 device created");
+			dbg_log("D3D9 device created");
 		}
 		else {
-			runtime->debugLog("D3D9 device creation FAILED");
+			dbg_log("D3D9 device creation FAILED");
 			return 0;
 		}
 	}
@@ -549,7 +549,7 @@ void gxGraphics::freeScene(gxScene* scene) {
 
 gxMesh* gxGraphics::createMesh(int max_verts, int max_tris, int flags) {
 #ifdef DX9
-	runtime->debugLog("createMesh called in DX9 mode");
+	dbg_log("createMesh called in DX9 mode");
 	return nullptr;
 #else
 	static const int VTXFMT =

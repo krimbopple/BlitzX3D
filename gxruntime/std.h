@@ -6,6 +6,7 @@
 #include "../config/config.h"
 #include "../stdutil/stdutil.h"
 #include "../bbruntime/constants.h"
+#include "debug_log.h"
 
 #pragma warning( disable:4786 )
 

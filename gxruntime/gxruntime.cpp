@@ -66,7 +66,7 @@ enum {
 // STATIC STARTUP //
 ////////////////////
 gxRuntime* gxRuntime::openRuntime(HINSTANCE hinst, const std::string& cmd_line, Debugger* d) {
-	MessageBoxA(NULL, "openRuntime start", "DBG", MB_OK);
+	dbg_log("openRuntime start");
 	if(runtime) return 0;
 
 	//create debugger
@@ -96,7 +96,7 @@ gxRuntime* gxRuntime::openRuntime(HINSTANCE hinst, const std::string& cmd_line, 
 	UpdateWindow(hwnd);
 
 	runtime = new gxRuntime(hinst, cmd_line, hwnd);
-	MessageBoxA(NULL, "openRuntime end", "DBG", MB_OK);
+	dbg_log("openRuntime end");
 	return runtime;
 }
 
@@ -830,7 +830,7 @@ bool gxRuntime::setDisplayMode(int w, int h, int d, bool d3d, IDirectDraw7* dirD
 }
 
 gxGraphics* gxRuntime::openWindowedGraphics(int w, int h, int d, bool d3d) {
-	MessageBoxA(NULL, "openWindowedGraphics start", "DBG", MB_OK);
+	dbg_log("openWindowedGraphics start");
 	IDirectDraw7* dd;
 	if(DirectDrawCreateEx(curr_driver->guid, (void**)&dd, IID_IDirectDraw7, 0) < 0) return 0;
 
@@ -865,9 +865,9 @@ gxGraphics* gxRuntime::openWindowedGraphics(int w, int h, int d, bool d3d) {
 								primSurf = ps;
 								mod_cnt = 0;
 								fs->AddRef();
-								MessageBoxA(NULL, "openWindowedGraphics success", "DBG", MB_OK);
+								dbg_log("openWindowedGraphics success");
 								gxGraphics* gfx = new gxGraphics(this, dd, fs, fs, d3d);
-								MessageBoxA(NULL, "After gxGraphics constructor return", "DBG", MB_OK);
+								dbg_log("After gxGraphics constructor return");
 								return gfx;
 							}
 							fs->Release();

@@ -1,31 +1,62 @@
+#define DX9
+
 #include "std.h"
 #include "gxgraphics.h"
 #include "gxruntime.h"
 #include "../gxruntime/gxutf8.h"
+
+#ifdef DX9
+extern "C" void* CreateD3D9DeviceStub(HWND hwnd, int width, int height);
+extern "C" void ReleaseD3D9DeviceStub(void* device);
+#endif
+
+#ifdef DX9
+#define DBGMSG(msg) MessageBoxA(NULL, msg, "Debug", MB_OK)
+#else
+#define DBGMSG(msg) ((void)0)
+#endif
 
 extern gxRuntime* gx_runtime;
 static Debugger* debugger;
 
 gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs, IDirectDrawSurface7* bs, bool d3d) :
 	runtime(rt), dirDraw(dd), dir3d(0), dir3dDev(0), gfx_lost(false), dummy_mesh(0) {
+
+	MessageBoxA(NULL, "gxGraphics ctor start", "DBG", MB_OK);
+
 	dirDraw->QueryInterface(IID_IDirectDraw, (void**)&ds_dirDraw);
+	MessageBoxA(NULL, "After QueryInterface", "DBG", MB_OK);
 
 	front_canvas = new gxCanvas(this, fs, 0);
+	MessageBoxA(NULL, "After front_canvas creation", "DBG", MB_OK);
+
 	back_canvas = new gxCanvas(this, bs, 0);
+	MessageBoxA(NULL, "After back_canvas creation", "DBG", MB_OK);
 
 	front_canvas->cls();
 	back_canvas->cls();
+	MessageBoxA(NULL, "After cls", "DBG", MB_OK);
 
 	FT_Init_FreeType(&ftLibrary);
+	MessageBoxA(NULL, "After FreeType init", "DBG", MB_OK);
 
 	HMODULE ntdllModule = GetModuleHandleW(L"ntdll.dll");
 	running_on_wine = ntdllModule && GetProcAddress(ntdllModule, "wine_get_version");
 
+#ifdef DX9
+	def_font = nullptr;
+#else
 	def_font = running_on_wine ? nullptr : this->loadFont(UTF8::getSystemFontFile("Courier"), 12);
+#endif
+
+	MessageBoxA(NULL, "After loadFont", "DBG", MB_OK);
 
 	front_canvas->setFont(def_font);
 	back_canvas->setFont(def_font);
+	MessageBoxA(NULL, "After setFont", "DBG", MB_OK);
 
+#ifndef DX9
+	MessageBoxA(NULL, "Entering D3D7 init", "DBG", MB_OK);
 	memset(&primFmt, 0, sizeof(primFmt));
 	primFmt.dwSize = sizeof(primFmt);
 	fs->GetPixelFormat(&primFmt);
@@ -42,10 +73,19 @@ gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs,
 	if (!_gamma) {
 		for (int k = 0; k < 256; ++k) _gammaRamp.red[k] = _gammaRamp.blue[k] = _gammaRamp.green[k] = k;
 	}
+	MessageBoxA(NULL, "D3D7 init done", "DBG", MB_OK);
+#else
+	MessageBoxA(NULL, "DX9 mode: skipping D3D7 init", "DBG", MB_OK);
+	d3d9dev = nullptr;
+#endif
+
+	MessageBoxA(NULL, "gxGraphics ctor end", "DBG", MB_OK);
 }
 
 gxGraphics::~gxGraphics() {
+#ifndef DX9
 	if (_gamma) _gamma->Release();
+#endif
 	while (scene_set.size()) freeScene(*scene_set.begin());
 	while (movie_set.size()) closeMovie(*movie_set.begin());
 	while (font_set.size()) freeFont(*font_set.begin());
@@ -70,8 +110,17 @@ gxGraphics::~gxGraphics() {
 
 	ds_dirDraw->Release();
 
+#ifndef DX9
 	dirDraw->RestoreDisplayMode();
+#endif
 	dirDraw->Release();
+
+#ifdef DX9
+	if (d3d9dev) {
+		ReleaseD3D9DeviceStub(d3d9dev);
+		d3d9dev = nullptr;
+	}
+#endif
 }
 
 void gxGraphics::setGamma(int r, int g, int b, float dr, float dg, float db) {
@@ -92,7 +141,7 @@ void gxGraphics::getGamma(int r, int g, int b, float* dr, float* dg, float* db) 
 }
 
 bool gxGraphics::restore() {
-
+#ifndef DX9
 	while (dirDraw->TestCooperativeLevel() != DD_OK) {
 
 		if (dirDraw->TestCooperativeLevel() == DDERR_WRONGMODE) return false;
@@ -114,8 +163,9 @@ bool gxGraphics::restore() {
 		(*mesh_it)->restore();
 	}
 	if (dir3d) dir3d->EvictManagedTextures();
-
+#else
 	return true;
+#endif
 }
 
 gxCanvas* gxGraphics::getFrontCanvas()const {
@@ -417,7 +467,23 @@ static void pickTexFmts(gxGraphics* g, int hi) {
 
 gxScene* gxGraphics::createScene(int flags) {
 	if (scene_set.size()) return 0;
+#ifdef DX9
+	if (!d3d9dev) {
+		d3d9dev = CreateD3D9DeviceStub(runtime->hwnd, back_canvas->getWidth(), back_canvas->getHeight());
+		if (d3d9dev) {
+			runtime->debugLog("D3D9 device created");
+		}
+		else {
+			runtime->debugLog("D3D9 device creation FAILED");
+			return 0;
+		}
+	}
 
+	gxScene* scene = new gxScene(this, back_canvas);
+	scene_set.insert(scene);
+	return scene;
+
+#else
 	//get d3d
 	if (dirDraw->QueryInterface(IID_IDirect3D7, (void**)&dir3d) >= 0) {
 		//enum devices
@@ -468,6 +534,7 @@ gxScene* gxGraphics::createScene(int flags) {
 		dir3d = 0;
 }
 	return 0;
+#endif
 }
 
 gxScene* gxGraphics::verifyScene(gxScene* s) {
@@ -478,14 +545,19 @@ void gxGraphics::freeScene(gxScene* scene) {
 	if (!scene_set.erase(scene)) return;
 	dummy_mesh = 0;
 	while (mesh_set.size()) freeMesh(*mesh_set.begin());
+#ifndef DX9
 	back_canvas->releaseZBuffer();
 	if (dir3dDev) { dir3dDev->Release(); dir3dDev = 0; }
 	if (dir3d) { dir3d->Release(); dir3d = 0; }
+#endif
 	delete scene;
 }
 
 gxMesh* gxGraphics::createMesh(int max_verts, int max_tris, int flags) {
-
+#ifdef DX9
+	runtime->debugLog("createMesh called in DX9 mode");
+	return nullptr;
+#else
 	static const int VTXFMT =
 		D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX2 |
 		D3DFVF_TEXCOORDSIZE2(0) | D3DFVF_TEXCOORDSIZE2(1);
@@ -505,6 +577,7 @@ gxMesh* gxGraphics::createMesh(int max_verts, int max_tris, int flags) {
 	gxMesh* mesh = new gxMesh(this, buff, indices, max_verts, max_tris);
 	mesh_set.insert(mesh);
 	return mesh;
+#endif
 }
 
 gxMesh* gxGraphics::verifyMesh(gxMesh* m) {

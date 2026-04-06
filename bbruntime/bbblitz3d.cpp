@@ -1,3 +1,4 @@
+#define DX9
 #include "std.h"
 
 #include "bbblitz3d.h"
@@ -2028,6 +2029,13 @@ int  bbActiveTextures() {
 }
 
 void blitz3d_open() {
+#ifdef DX9
+	gx_scene = nullptr;
+	::projected = Vector();
+	picked.collision = Collision();
+	picked.with = 0; picked.coords = Vector();
+	stats_mode = false;
+#else
 	gx_scene = gx_graphics->createScene(0);
 	if (!gx_scene) RTEX(MultiLang::unable_create_gxscene_instance);
 	world = new World();
@@ -2041,6 +2049,7 @@ void blitz3d_open() {
 	loader_mat_map["3ds"] = Transform(Matrix(Vector(1, 0, 0), Vector(0, 0, 1), Vector(0, 1, 0)));
 	listener = 0;
 	stats_mode = false;
+#endif
 }
 
 void blitz3d_close() {

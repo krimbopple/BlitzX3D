@@ -20,6 +20,9 @@ class gxRuntime;
 
 class gxGraphics {
 public:
+#ifdef DX9
+	void* d3d9dev;   // IDirect3DDevice9
+#endif
 	IDirectDraw7* dirDraw;
 	IDirectDraw* ds_dirDraw;
 

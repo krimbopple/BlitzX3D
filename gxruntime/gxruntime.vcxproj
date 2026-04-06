@@ -140,6 +140,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="d3d9_stub.cpp" />
     <ClCompile Include="ddutil.cpp" />
     <ClCompile Include="gxfont.cpp" />
     <ClCompile Include="gxaudio.cpp" />

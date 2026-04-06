@@ -91,6 +91,10 @@ static void freeGraphics()
         gx_graphics->freeCanvas(p_canvas);
         p_canvas = 0;
     }
+
+    gx_canvas = nullptr;
+    gx_graphics = nullptr;
+    curr_font = nullptr;
 }
 
 #define RED(_X_) ( ((_X_)>>16) & 0xff )

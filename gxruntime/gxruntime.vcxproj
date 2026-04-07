@@ -62,7 +62,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <StringPooling>true</StringPooling>
-      <PreprocessorDefinitions>WIN32;_HAS_STD_BYTE=0;NDEBUG;PRO;_LIB;_HAS_STD_BYTE=0;_NO_DEBUG_HEAP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_HAS_STD_BYTE=0;NDEBUG;PRO;_LIB;_HAS_STD_BYTE=0;_NO_DEBUG_HEAP=1;DX9=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerListingLocation>.\Release\</AssemblerListingLocation>
       <PrecompiledHeaderOutputFile>.\Release\gxruntime.pch</PrecompiledHeaderOutputFile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -142,6 +142,8 @@
   <ItemGroup>
     <ClCompile Include="d3d9_stub.cpp" />
     <ClCompile Include="ddutil.cpp" />
+    <ClCompile Include="dx9_gxgraphics.cpp" />
+    <ClCompile Include="dx9_gxruntime.cpp" />
     <ClCompile Include="gxfont.cpp" />
     <ClCompile Include="gxaudio.cpp" />
     <ClCompile Include="gxcanvas.cpp" />
@@ -171,6 +173,8 @@
   <ItemGroup>
     <ClInclude Include="asmcoder.h" />
     <ClInclude Include="ddutil.h" />
+    <ClInclude Include="dx9_gxgraphics.h" />
+    <ClInclude Include="dx9_gxruntime.h" />
     <ClInclude Include="gxfont.h" />
     <ClInclude Include="gxaudio.h" />
     <ClInclude Include="gxcanvas.h" />

@@ -396,7 +396,7 @@ void Toker::nextline()
             return;
         }
 
-        static const int MAX_MACRO_DEPTH = 100;
+        static constexpr  int MAX_MACRO_DEPTH = 100;
         static int macroDepth = 0;
         if (macroDepth < MAX_MACRO_DEPTH) {
             macroDepth++;

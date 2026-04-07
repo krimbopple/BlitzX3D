@@ -91,7 +91,7 @@ static std::vector<std::string> tokenizeExpression(const std::string& expr) {
     return tokens;
 }
 
-static std::vector<std::string> toRPN(const std::vector<std::string>& tokens) {
+static std::vector<std::string> toRPN(const std::vector<std::string>& tokens) {  // RPN = Reverse Polish Notation
     std::vector<std::string> output;
     std::stack<std::string> ops;
 
@@ -124,7 +124,7 @@ static std::vector<std::string> toRPN(const std::vector<std::string>& tokens) {
     return output;
 }
 
-static bool evaluateRPN(const std::vector<std::string>& rpn) {
+static bool evaluateRPN(const std::vector<std::string>& rpn) { // RPN = Reverse Polish Notation
     std::stack<PreprocessorOps> st;
     for (const auto& tok : rpn) {
         if (precedence.count(tok)) {
@@ -156,7 +156,7 @@ PreprocessorOps processToken(const std::string& token) {
         else if (value == "true" || value == "false")
             return PreprocessorOps::fromBoolean(value == "true");
         else
-            return PreprocessorOps(value, PreprocessorOps::NUMBER);
+            throw Ex(std::format("Macro '{}' expands to non-numeric, non-boolean value '{}'", token, value));
     }
     if (isNumber(token)) {
         return PreprocessorOps::fromNumber(token);
@@ -164,8 +164,7 @@ PreprocessorOps processToken(const std::string& token) {
     if (token == "true" || token == "false") {
         return PreprocessorOps::fromBoolean(token == "true");
     }
-
-    return PreprocessorOps::fromNumber("0");
+    throw Ex(std::format("Invalid token in preprocessor expression: '{}'", token));
 }
 
 PreprocessorOps evaluateOperation(const PreprocessorOps& lhs, const PreprocessorOps& rhs, const std::string& op) {

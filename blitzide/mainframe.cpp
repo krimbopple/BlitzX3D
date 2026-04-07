@@ -193,10 +193,14 @@ static bool ApplyIconToExe(const std::string& exePath, const std::string& icoPat
 
 	bool success = true;
 
-	for (WORD i = 0; i < dir.idCount; ++i) {
-		WORD iconId = i + 1;
-		UpdateResourceA(hUpdate, RT_ICON, MAKEINTRESOURCEA(iconId), MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED), images[i].data.data(), (DWORD)images[i].data.size());
-	}
+    for (WORD i = 0; i < dir.idCount; ++i) {
+        WORD iconId = i + 1;
+        UpdateResourceA(hUpdate, RT_ICON, MAKEINTRESOURCEA(iconId), MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED), images[i].data.data(), (DWORD)images[i].data.size());
+    }
+
+	for (WORD id = dir.idCount + 1; id <= 255; ++id) {
+        UpdateResourceA(hUpdate, RT_ICON, MAKEINTRESOURCEA(id), MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED), NULL, 0);
+    }
 
 	if (success)
 	{

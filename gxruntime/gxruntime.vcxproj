@@ -62,7 +62,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <StringPooling>true</StringPooling>
-      <PreprocessorDefinitions>WIN32;_HAS_STD_BYTE=0;NDEBUG;PRO;_LIB;_HAS_STD_BYTE=0;_NO_DEBUG_HEAP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_HAS_STD_BYTE=0;NDEBUG;PRO;_LIB;_HAS_STD_BYTE=0;_NO_DEBUG_HEAP=1;DX9=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerListingLocation>.\Release\</AssemblerListingLocation>
       <PrecompiledHeaderOutputFile>.\Release\gxruntime.pch</PrecompiledHeaderOutputFile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -189,6 +189,7 @@
     <ClInclude Include="gxtimer.h" />
     <ClInclude Include="gxutf8.h" />
     <ClInclude Include="std.h" />
+    <ClInclude Include="stub_types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

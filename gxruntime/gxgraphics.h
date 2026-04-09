@@ -26,15 +26,12 @@ public:
 	IDirectDraw7* dirDraw;
 	IDirectDraw* ds_dirDraw;
 
-#ifndef DX9
 	IDirect3D7* dir3d;
 	IDirect3DDevice7* dir3dDev;
 	D3DDEVICEDESC7 dir3dDevDesc;
-
 	DDPIXELFORMAT primFmt, zbuffFmt;
 
 	DDPIXELFORMAT texRGBFmt[2], texAlphaFmt[2], texRGBAlphaFmt[2], texRGBMaskFmt[2];
-#endif
 
 	FT_Library ftLibrary;
 

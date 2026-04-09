@@ -17,8 +17,6 @@
 class gxRuntime {
 	/***** INTERNAL INTERFACE *****/
 public:
-	gxRuntime(HINSTANCE hinst, const std::string& cmd_line, HWND hwnd);
-	virtual ~gxRuntime();
 
 	HWND hwnd;
 	HINSTANCE hinst;
@@ -39,6 +37,8 @@ public:
 	struct GfxDriver;
 
 private:
+	gxRuntime(HINSTANCE hinst, const std::string& cmd_line, HWND hwnd);
+	~gxRuntime();
 
 	void paint();
 	void suspend();
@@ -131,7 +131,7 @@ public:
 	gxInput* openInput(int flags);
 	void closeInput(gxInput* input);
 
-	virtual gxGraphics* openGraphics(int w, int h, int d, int driver, int flags);
+	gxGraphics* openGraphics(int w, int h, int d, int driver, int flags);
 	void closeGraphics(gxGraphics* graphics);
 	bool graphicsLost();
 	bool focus();

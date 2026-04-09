@@ -16,7 +16,12 @@ class gxTexture;
 class gxScene {
 public:
 	gxGraphics* graphics;
+
+#ifdef DX9
+	void* d3d9dev;               // IDirect3DDevice9
+#else
 	IDirect3DDevice7* dir3dDev;
+#endif
 
 	gxScene(gxGraphics* graphics, gxCanvas* target);
 	~gxScene();
@@ -121,6 +126,43 @@ public:
 	int textureAnisotropic;
 
 private:
+#ifdef DX9
+	bool wbuffer, dither, antialias, wireframe, flipped;
+	unsigned ambient, ambient2, fogcolor;
+	int caps_level, fogmode, zmode, max_lights;
+	float fogrange_nr, fogrange_fr, fog_density;
+	D3DVIEWPORT9 viewport;
+	bool ortho_proj;
+	float frustum_nr, frustum_fr, frustum_w, frustum_h;
+	D3DMATRIX projmatrix, viewmatrix, worldmatrix;
+	D3DMATRIX inv_viewmatrix;
+	D3DMATERIAL9 material;
+	float shininess;
+	int blend, fx;
+	struct TexState {
+		gxCanvas* canvas;
+		int blend, flags;
+		DWORD bumpEnvMat[2][2];
+		DWORD bumpEnvScale;
+		DWORD bumpEnvOffset;
+		D3DMATRIX matrix;
+		bool mat_valid;
+	};
+	TexState texstate[MAX_TEXTURES];
+	int n_texs, tris_drawn;
+
+	std::set<gxLight*> _allLights;
+	std::vector<gxLight*> _curLights;
+
+	void setRS(int n, int t);
+	void setTSS(int n, int s, int t);
+	void setLights();
+	void setZMode();
+	void setAmbient();
+	void setFogMode();
+	void setTriCull();
+	void setTexState(int index, const TexState& state, bool set_blend);
+#else
 	gxCanvas* target;
 	bool wbuffer, dither, antialias, wireframe, flipped;
 	unsigned ambient, ambient2, fogcolor;
@@ -161,6 +203,7 @@ private:
 	void setFogMode();
 	void setTriCull();
 	void setTexState(int index, const TexState& state, bool set_blend);
+#endif
 };
 
 #endif

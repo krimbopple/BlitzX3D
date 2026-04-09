@@ -1,3 +1,4 @@
+#ifndef DX9
 #include "std.h"
 #include "ddutil.h"
 #include "asmcoder.h"
@@ -513,3 +514,4 @@ ddSurf* ddUtil::loadSurface(const std::string& f, int flags, gxGraphics* gfx) {
 	FreeImage_Unload(dib);
 	return dest;
 }
+#endif

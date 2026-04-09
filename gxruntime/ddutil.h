@@ -1,10 +1,15 @@
 #ifndef DDUTIL_H
 #define DDUTIL_H
 
+#ifndef DX9
 #include <ddraw.h>
+typedef IDirectDrawSurface7 ddSurf;
+#else
+struct IDirect3DTexture9;
+typedef IDirect3DTexture9* ddSurf;
+#endif
 
 class gxGraphics;
-typedef IDirectDrawSurface7 ddSurf;
 
 struct ddUtil {
 

@@ -1,3 +1,4 @@
+#ifndef DX9
 #include "std.h"
 #include "gxcanvas.h"
 #include "gxgraphics.h"
@@ -741,3 +742,4 @@ void gxCanvas::setCubeFace(int face) {
 	getTexSurface();
 	surf = cube_surfs[face];
 }
+#endif

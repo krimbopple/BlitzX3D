@@ -20,24 +20,29 @@ class gxRuntime;
 
 class gxGraphics {
 public:
-#ifdef DX9
-	void* d3d9dev;   // IDirect3DDevice9
-#endif
+
+#ifndef DX9
 	IDirectDraw7* dirDraw;
 	IDirectDraw* ds_dirDraw;
-
 	IDirect3D7* dir3d;
 	IDirect3DDevice7* dir3dDev;
 	D3DDEVICEDESC7 dir3dDevDesc;
 	DDPIXELFORMAT primFmt, zbuffFmt;
-
 	DDPIXELFORMAT texRGBFmt[2], texAlphaFmt[2], texRGBAlphaFmt[2], texRGBMaskFmt[2];
+#else
+	void* d3d9dev;   // IDirect3DDevice9
+#endif
 
 	FT_Library ftLibrary;
 
 	bool running_on_wine;
 
+#ifndef DX9
 	gxGraphics(gxRuntime* runtime, IDirectDraw7* dirDraw, IDirectDrawSurface7* front, IDirectDrawSurface7* back, bool d3d);
+#else
+	gxGraphics(gxRuntime* runtime, bool d3d);
+#endif
+
 	~gxGraphics();
 
 	bool restore();

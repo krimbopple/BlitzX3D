@@ -6,7 +6,9 @@
 class gxFont;
 class gxGraphics;
 
+#ifndef DX9
 typedef IDirectDrawSurface7 ddSurf;
+#endif
 
 class gxCanvas {
 public:

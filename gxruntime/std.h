@@ -23,7 +23,11 @@
 
 #include <math.h>
 #include <Windows.h>
+#ifndef DX9
 #include <ddraw.h> // Why are we still here? Just to suffer?
 #include <d3d.h>
+#else
+#include <d3d9.h> // suicide
+#endif
 
 #endif

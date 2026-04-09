@@ -6,20 +6,27 @@
 #include "../gxruntime/gxutf8.h"
 
 #ifdef DX9
-extern "C" void* CreateD3D9DeviceStub(HWND hwnd, int width, int height);
-extern "C" void ReleaseD3D9DeviceStub(void* device);
+extern "C" void* CreateD3D9Device(HWND hwnd, int width, int height, bool windowed);
+extern "C" void ReleaseD3D9Device(void* device);
 #endif
 
 extern gxRuntime* gx_runtime;
 static Debugger* debugger;
 
+#ifndef DX9
 gxGraphics::gxGraphics(gxRuntime* rt, IDirectDraw7* dd, IDirectDrawSurface7* fs, IDirectDrawSurface7* bs, bool d3d) :
 	runtime(rt), dirDraw(dd), dir3d(0), dir3dDev(0), gfx_lost(false), dummy_mesh(0) {
+#else
+gxGraphics::gxGraphics(gxRuntime * rt, bool d3d) :
+	runtime(rt), gfx_lost(false), dummy_mesh(0) {
+#endif
 
 	dbg_log("gxGraphics ctor start");
 
+#ifndef DX9
 	dirDraw->QueryInterface(IID_IDirectDraw, (void**)&ds_dirDraw);
 	dbg_log("After QueryInterface");
+#endif
 
 	front_canvas = new gxCanvas(this, fs, 0);
 	dbg_log("After front_canvas creation");
@@ -101,17 +108,14 @@ gxGraphics::~gxGraphics() {
 	delete front_canvas;
 
 	FT_Done_FreeType(ftLibrary);
-
-	ds_dirDraw->Release();
-
 #ifndef DX9
+	ds_dirDraw->Release();
 	dirDraw->RestoreDisplayMode();
-#endif
 	dirDraw->Release();
-
+#endif
 #ifdef DX9
 	if (d3d9dev) {
-		ReleaseD3D9DeviceStub(d3d9dev);
+		ReleaseD3D9Device(d3d9dev);
 		d3d9dev = nullptr;
 	}
 #endif
@@ -174,9 +178,11 @@ gxFont* gxGraphics::getDefaultFont()const {
 	return def_font;
 }
 
+#ifndef DX9
 void gxGraphics::vwait() {
 	dirDraw->WaitForVerticalBlank(DDWAITVB_BLOCKBEGIN, 0);
 }
+#endif
 
 void gxGraphics::flip(bool v) {
 	runtime->flip(v);
@@ -188,6 +194,7 @@ void gxGraphics::copy(gxCanvas* dest, int dx, int dy, int dw, int dh, gxCanvas* 
 	dest->damage(r);
 }
 
+#ifndef DX9
 int gxGraphics::getScanLine()const {
 	DWORD t = 0;
 	dirDraw->GetScanLine(&t);
@@ -237,6 +244,7 @@ gxMovie* gxGraphics::openMovie(const std::string& file, int flags) {
 	}
 	return 0;
 }
+#endif
 
 gxMovie* gxGraphics::verifyMovie(gxMovie* m) {
 	return movie_set.count(m) ? m : 0;
@@ -314,7 +322,7 @@ void gxGraphics::freeFont(gxFont* f) {
 //////////////
 
 static int maxDevType;
-
+#ifndef DX9
 static HRESULT CALLBACK enumDevice(char* desc, char* name, D3DDEVICEDESC7* devDesc, void* context) {
 	gxGraphics* g = (gxGraphics*)context;
 	int t = 0;
@@ -342,6 +350,7 @@ static HRESULT CALLBACK enumZbuffFormat(LPDDPIXELFORMAT format, void* context) {
 	}
 	return D3DENUMRET_OK;
 }
+#endif
 
 struct TexFmt {
 	DDPIXELFORMAT fmt;
@@ -357,7 +366,7 @@ static int cntBits(int mask) {
 }
 
 static std::vector<TexFmt> tex_fmts;
-
+#ifndef DX9
 static HRESULT CALLBACK enumTextureFormat(DDPIXELFORMAT* fmt, void* p) {
 	TexFmt t;
 	t.fmt = *fmt;
@@ -369,7 +378,7 @@ static HRESULT CALLBACK enumTextureFormat(DDPIXELFORMAT* fmt, void* p) {
 
 	return D3DENUMRET_OK;
 }
-
+#endif
 static std::string itobin(int n) {
 	std::string t;
 	for (int k = 0; k < 32; n <<= 1, ++k) {
@@ -393,7 +402,7 @@ static void debugPF(const DDPIXELFORMAT& pf) {
 	gx_runtime->debugLog(t.c_str());
 	}
 #endif
-
+#ifndef DX9
 static void pickTexFmts(gxGraphics* g, int hi) {
 	//texRGBFmt.
 	{
@@ -458,12 +467,12 @@ static void pickTexFmts(gxGraphics* g, int hi) {
 		else g->texRGBMaskFmt[hi] = tex_fmts[pick].fmt;
 	}
 }
-
+#endif
 gxScene* gxGraphics::createScene(int flags) {
 	if (scene_set.size()) return 0;
 #ifdef DX9
 	if (!d3d9dev) {
-		d3d9dev = CreateD3D9DeviceStub(runtime->hwnd, back_canvas->getWidth(), back_canvas->getHeight());
+		d3d9dev = CreateD3D9Device(runtime->hwnd, back_canvas->getWidth(), back_canvas->getHeight(), true);
 		if (d3d9dev) {
 			dbg_log("D3D9 device created");
 		}

@@ -718,15 +718,11 @@ void gxRuntime::setPointerVisible(bool vis) {
 /////////////////
 // AUDIO SETUP //
 /////////////////
-gxAudio* gxRuntime::openAudio(int flags) {
+gxAudio* gxRuntime::openAudio(int /*flags*/) {
 	if(audio) return 0;
 
-	int f_flags =
-		FSOUND_INIT_GLOBALFOCUS |
-		FSOUND_INIT_USEDEFAULTMIDISYNTH;
-
-	FSOUND_SetHWND(hwnd);
-	if(!FSOUND_Init(44100, 1024, f_flags)) {
+	if (!gxAudio_Init()) {
+		debugLog("OpenAL: failed to open audio device.");
 		return 0;
 	}
 

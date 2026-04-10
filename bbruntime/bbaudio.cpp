@@ -62,6 +62,15 @@ gxChannel* bbPlaySound(gxSound* sound) {
 	return sound->play();
 }
 
+gxChannel* bbPlaySound3D(gxSound* sound, float x, float y, float z,
+	float vx, float vy, float vz) {
+	if (!sound) return 0;
+	debugSound(sound, "PlaySound3D");
+	const float pos[3] = { x, y, z };
+	const float vel[3] = { vx, vy, vz };
+	return sound->play3d(pos, vel);
+}
+
 gxChannel* bbPlayMusic(BBStr* f, int mode) {
 	return playMusic(f, false, mode);
 }
@@ -128,6 +137,7 @@ void audio_link(void(*rtSym)(const char*, void*)) {
 	rtSym("SoundVolume%sound#volume", bbSoundVolume);
 	rtSym("SoundPan%sound#pan", bbSoundPan);
 	rtSym("%PlaySound%sound", bbPlaySound);
+	rtSym("%PlaySound3D%sound#x#y#z#vx=0#vy=0#vz=0", bbPlaySound3D);
 	rtSym("%PlayMusic$midifile%mode=0", bbPlayMusic);
 	rtSym("%PlayCDTrack%track%mode=1", bbPlayCDTrack);
 	rtSym("StopChannel%channel", bbStopChannel);

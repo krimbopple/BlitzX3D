@@ -1,7 +1,11 @@
 #ifndef STD_H
 #define STD_H
 
-#include "..//fmod375/include/fmod.h"
+// openAL
+#include "../openAL/include/AL/al.h" // just let me do <AL/al.h> you wank
+#include "../openAL/include/AL/alc.h"
+#include "../openAL/include/dr_wav.h"
+#include "../openAL/include/dr_mp3.h"
 
 #include "../config/config.h"
 #include "../stdutil/stdutil.h"

@@ -4,22 +4,21 @@
 #include "gxchannel.h"
 
 class gxAudio;
-struct FSOUND_SAMPLE;
 
 class gxSound {
 public:
 	gxAudio* audio;
 
-	gxSound(gxAudio* audio, FSOUND_SAMPLE* sample);
+	gxSound(gxAudio* audio, unsigned int alBuffer, int freq);
 	~gxSound();
 
 private:
-	bool defs_valid;
-	int def_freq, def_vol, def_pan, def_pri;
-	FSOUND_SAMPLE* sample;
-	float pos[3], vel[3];
-
-	void setDefaults();
+	unsigned int alBuffer;
+	bool    looping;
+	int     def_freq; // hz
+	float   def_vol;
+	float   def_pan; // -1 to +1
+	float   pos[3], vel[3];
 
 	/***** GX INTERFACE *****/
 public:
@@ -32,6 +31,12 @@ public:
 	void setPitch(int hertz);
 	void setVolume(float volume);
 	void setPan(float pan);
+
+	unsigned int getBuffer() const { return alBuffer; }
+	bool   isLooping()       const { return looping; }
+	int    getFreq()         const { return def_freq; }
+	float  getVol()          const { return def_vol; }
+	float  getPan()          const { return def_pan; }
 };
 
 #endif

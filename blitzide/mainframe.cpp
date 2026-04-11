@@ -858,10 +858,20 @@ void MainFrame::build(bool exec, bool publish) {
 		opts += "-o \"" + outExePath + "\" ";
 
 		std::string iconPath;
-		CFileDialog iconDlg(TRUE, "ico", NULL, OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, "Icon files (*.ico)|*.ico||");
-		iconDlg.m_ofn.lpstrTitle = "Select an icon to embed (optional)";
-		if (iconDlg.DoModal() == IDOK) {
-			iconPath = iconDlg.GetPathName();
+
+		std::filesystem::path exePath(outExePath);
+		std::string autoIconPath = exePath.replace_extension(".ico").string();
+
+		if (std::filesystem::exists(autoIconPath)) {
+			iconPath = autoIconPath;
+		}
+		else
+		{
+			CFileDialog iconDlg(TRUE, "ico", NULL, OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, "Icon files (*.ico)|*.ico||");
+			iconDlg.m_ofn.lpstrTitle = "Select an icon to embed (optional)";
+			if (iconDlg.DoModal() == IDOK) {
+				iconPath = iconDlg.GetPathName();
+			}
 		}
 
 		compile(prefs.homeDir + "/bin/blitzcc -q " + opts + " \"" + src_file + "\" " + prefs.cmd_line);

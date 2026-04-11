@@ -1,3 +1,24 @@
+/*
+This file contains modified code derived from the Blitz3D engine.
+
+Original code:
+Copyright (c) 2013 Blitz Research Ltd
+Licensed under the zlib/libpng License.
+
+Modifications and additional code:
+Copyright (c) 2026 krimbopple
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter and redistribute it freely,
+subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented.
+2. Altered source versions must be plainly marked as such.
+3. This notice may not be removed or altered from any source distribution.
+
+This software is provided "as-is", without any express or implied warranty.
+*/
+
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
 

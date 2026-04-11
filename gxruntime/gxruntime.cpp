@@ -3,6 +3,7 @@
 #include "zmouse.h"
 
 #include "../gxruntime/gxutf8.h"
+#include "../gxruntime/gxaudio_stream.h"
 
 #include "../freeimage/freeimage.h"
 
@@ -294,6 +295,8 @@ void gxRuntime::paint() {
 // FLIP //
 //////////
 void gxRuntime::flip(bool vwait) {
+	gxAudio_UpdateStreams(); // lets see YOU take a crack at it wise guy!
+
 	gxCanvas* b = graphics->getBackCanvas();
 	gxCanvas* f = graphics->getFrontCanvas();
 	int n;

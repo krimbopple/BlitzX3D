@@ -3,6 +3,7 @@
 
 #include "bbsys.h"
 #include "../gxruntime/gxaudio.h"
+#include "../gxruntime/gxaudio_stream.h"
 
 extern gxAudio* gx_audio;
 
@@ -14,6 +15,20 @@ void		 bbLoopSound(gxSound* sound);
 void		 bbSoundPitch(gxSound* sound, int pitch);
 void		 bbSoundVolume(gxSound* sound, float volume);
 void		 bbSoundPan(gxSound* sound, float pan);
+
+AsyncSoundHandle* bbLoadSoundAsync(BBStr* filename);
+AsyncSoundHandle* bbLoad3DSoundAsync(BBStr* filename);
+int               bbAsyncSoundReady(AsyncSoundHandle* handle);
+int               bbAsyncSoundFailed(AsyncSoundHandle* handle);
+gxSound*          bbAsyncSoundGet(AsyncSoundHandle* handle);
+void              bbFreeAsyncSound(AsyncSoundHandle* handle);
+
+gxChannel* bbOpenStreamSound(BBStr* filename, int loop);
+gxChannel* bbStreamSound(BBStr* filename, float volume, int loop);
+void       bbFreeStreamSound(gxChannel* channel);
+void       bbStopStream(gxChannel* channel);
+void       bbSetStreamVolume(gxChannel* channel, float volume);
+
 gxChannel* bbPlayMusic(BBStr* s, int mode);
 gxChannel* bbPlayCDTrack(int track, int mode);
 void		 bbStopChannel(gxChannel* channel);

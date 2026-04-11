@@ -1,6 +1,7 @@
 #include "std.h"
 #include "bbaudio.h"
 #include "../MultiLang/MultiLang.h"
+#include "../gxruntime/gxaudio_stream.h"
 
 gxAudio* gx_audio;
 
@@ -71,6 +72,64 @@ gxChannel* bbPlaySound3D(gxSound* sound, float x, float y, float z,
 	return sound->play3d(pos, vel);
 }
 
+AsyncSoundHandle* bbLoadSoundAsync(BBStr* f) {
+	std::string t = *f; delete f;
+	if (!gx_audio) return nullptr;
+	return gxAudio_LoadSoundAsync(gx_audio, t, false);
+}
+
+AsyncSoundHandle* bbLoad3DSoundAsync(BBStr* f) {
+	std::string t = *f; delete f;
+	if (!gx_audio) return nullptr;
+	return gxAudio_LoadSoundAsync(gx_audio, t, true);
+}
+
+int bbAsyncSoundReady(AsyncSoundHandle* handle) {
+	return (handle && handle->isReady()) ? 1 : 0;
+}
+
+int bbAsyncSoundFailed(AsyncSoundHandle* handle) {
+	return (handle && handle->isFailed()) ? 1 : 0;
+}
+
+gxSound* bbAsyncSoundGet(AsyncSoundHandle* handle) {
+	if (!handle || !handle->isReady()) return nullptr;
+	return handle->sound;
+}
+
+void bbFreeAsyncSound(AsyncSoundHandle* handle) {
+	gxAudio_FreeAsyncHandle(handle);
+}
+
+gxChannel* bbOpenStreamSound(BBStr* f, int loop) {
+	std::string t = *f; delete f;
+	gxStreamChannel* sc = gxAudio_OpenStream(t, loop != 0);
+	return sc;
+}
+
+gxChannel* bbStreamSound(BBStr* f, float volume, int loop) {
+	std::string t = *f; delete f;
+	gxStreamChannel* sc = gxAudio_OpenStream(t, loop != 0);
+	if (!sc) return nullptr;
+	sc->setVolume(volume);
+	return sc;
+}
+
+void bbFreeStreamSound(gxChannel* channel) {
+	if (!channel) return;
+	channel->stop();
+	delete channel;
+}
+
+void bbStopStream(gxChannel* channel) {
+	bbFreeStreamSound(channel);
+}
+
+void bbSetStreamVolume(gxChannel* channel, float volume) {
+	if (!channel) return;
+	channel->setVolume(volume);
+}
+
 gxChannel* bbPlayMusic(BBStr* f, int mode) {
 	return playMusic(f, false, mode);
 }
@@ -124,7 +183,8 @@ bool audio_create() {
 
 bool audio_destroy() {
 	if (gx_audio) gx_runtime->closeAudio(gx_audio);
-	gx_audio = 0;
+	gx_audio = nullptr;
+	gxAudioStream_Shutdown();
 	return true;
 }
 
@@ -138,6 +198,20 @@ void audio_link(void(*rtSym)(const char*, void*)) {
 	rtSym("SoundPan%sound#pan", bbSoundPan);
 	rtSym("%PlaySound%sound", bbPlaySound);
 	rtSym("%PlaySound3D%sound#x#y#z#vx=0#vy=0#vz=0", bbPlaySound3D);
+
+	rtSym("%LoadSoundAsync$filename", bbLoadSoundAsync);
+	rtSym("%Load3DSoundAsync$filename", bbLoad3DSoundAsync);
+	rtSym("%AsyncSoundReady%handle", bbAsyncSoundReady);
+	rtSym("%AsyncSoundFailed%handle", bbAsyncSoundFailed);
+	rtSym("%AsyncSoundGet%handle", bbAsyncSoundGet);
+	rtSym("FreeAsyncSound%handle", bbFreeAsyncSound);
+
+	rtSym("%OpenStreamSound$filename%loop=0", bbOpenStreamSound);
+	rtSym("%StreamSound$filename#volume=1.0%loop=0", bbStreamSound);
+	rtSym("FreeStreamSound%channel", bbFreeStreamSound);
+	rtSym("StopStream%channel", bbStopStream);
+	rtSym("SetStreamVolume%channel#volume", bbSetStreamVolume);
+
 	rtSym("%PlayMusic$midifile%mode=0", bbPlayMusic);
 	rtSym("%PlayCDTrack%track%mode=1", bbPlayCDTrack);
 	rtSym("StopChannel%channel", bbStopChannel);

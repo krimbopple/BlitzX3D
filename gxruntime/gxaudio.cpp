@@ -43,6 +43,8 @@ extern "C" int stb_vorbis_decode_filename(const char* filename, int* channels, i
 
 extern gxRuntime* gx_runtime;
 
+extern void gxAudioStream_Shutdown();
+
 static void logALError(const char* operation) {
 	ALenum err = alGetError();
 	if (err != AL_NO_ERROR) {
@@ -641,6 +643,7 @@ bool gxAudio_Init() {
 }
 
 void gxAudio_Shutdown() {
+	gxAudioStream_Shutdown();
 	if (al_context) {
 		alcMakeContextCurrent(nullptr);
 		alcDestroyContext(al_context);

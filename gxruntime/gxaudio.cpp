@@ -13,9 +13,29 @@ extern "C" int stb_vorbis_decode_filename(const char* filename, int* channels, i
 #include "gxaudio.h"
 #include "gxsound.h"
 #include "gxchannel.h"
+#include "gxruntime.h"
 
 #include <algorithm>
 #include <cctype>
+#include <format>
+#include <sys/stat.h>
+
+extern gxRuntime* gx_runtime;
+
+static void logALError(const char* operation) {
+	ALenum err = alGetError();
+	if (err != AL_NO_ERROR) {
+		const char* msg = "unknown";
+		switch (err) {
+		case AL_INVALID_NAME:      msg = "AL_INVALID_NAME"; break;
+		case AL_INVALID_ENUM:      msg = "AL_INVALID_ENUM"; break;
+		case AL_INVALID_VALUE:     msg = "AL_INVALID_VALUE"; break;
+		case AL_INVALID_OPERATION: msg = "AL_INVALID_OPERATION"; break;
+		case AL_OUT_OF_MEMORY:     msg = "AL_OUT_OF_MEMORY"; break;
+		}
+		if (gx_runtime) gx_runtime->debugLog(std::format("OpenAL error after {}: {}", operation, msg).c_str());
+	}
+}
 
 static std::string toLowerExt(const std::string& path) {
 	std::string ext;
@@ -49,13 +69,24 @@ static drmp3_uint64 downmixToMono_mp3(short* buf, drmp3_uint64 frames, drmp3_uin
 }
 
 static unsigned int loadALBuffer(const std::string& filename, bool forceMono, int& outFreq) {
-	std::string ext = toLowerExt(filename);
+	if (gx_runtime) gx_runtime->debugLog(
+		std::format("loadALBuffer: {} (forceMono={})", filename, forceMono).c_str());
 
+	alGetError();
+
+	std::string ext = toLowerExt(filename);
 	ALuint buffer = AL_NONE;
+
 	alGenBuffers(1, &buffer);
-	if (alGetError() != AL_NO_ERROR) return AL_NONE;
+	ALenum err = alGetError();
+	if (err != AL_NO_ERROR) {
+		if (gx_runtime) gx_runtime->debugLog(std::format("alGenBuffers failed: error={}", err).c_str());
+		return AL_NONE;
+	}
+	if (gx_runtime) gx_runtime->debugLog(std::format("Generated buffer: {}", buffer).c_str());
 
 	bool ok = false;
+	outFreq = 44100;
 
 	// WAV 
 	if (ext == "wav") {
@@ -75,16 +106,22 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 				if (forceMono && channels > 1) {
 					drwav_uint64 mono = downmixToMono_s16(pcm.data(), read, channels);
 					fmt = AL_FORMAT_MONO16;
-					alBufferData(buffer, fmt, pcm.data(),
-						(ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
+					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
 				}
 				else {
 					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-					alBufferData(buffer, fmt, pcm.data(),
-						(ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
+					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
 				}
 				ok = (alGetError() == AL_NO_ERROR);
+				if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for WAV");
 			}
+			else {
+				if (gx_runtime) gx_runtime->debugLog("WAV: read 0 frames");
+			}
+		}
+		else {
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("WAV: drwav_init_file failed for {}", filename).c_str());
 		}
 	}
 	// MP3
@@ -105,58 +142,94 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 				if (forceMono && channels > 1) {
 					drmp3_uint64 mono = downmixToMono_mp3(pcm.data(), read, channels);
 					fmt = AL_FORMAT_MONO16;
-					alBufferData(buffer, fmt, pcm.data(),
-						(ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
+					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
 				}
 				else {
 					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-					alBufferData(buffer, fmt, pcm.data(),
-						(ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
+					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
 				}
 				ok = (alGetError() == AL_NO_ERROR);
+				if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for MP3");
 			}
+			else {
+				if (gx_runtime) gx_runtime->debugLog("MP3: read 0 frames");
+			}
+		}
+		else {
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("MP3: drmp3_init_file failed for {}", filename).c_str());
 		}
 	}
 	// OGG vorbis.. like.. verbose logging..
 	else if (ext == "ogg") {
-		int channels = 0;
-		int sampleRate = 0;
-		short* decoded = nullptr;
-		int samples = stb_vorbis_decode_filename(
-			filename.c_str(), &channels, &sampleRate, &decoded);
+		if (gx_runtime) gx_runtime->debugLog("Processing OGG file");
 
-		if (samples > 0 && decoded) {
-			outFreq = sampleRate;
-			ALenum fmt;
-			if (forceMono && channels > 1) {
-				// downmix
-				std::vector<short> mono(samples);
-				for (int i = 0; i < samples; ++i) {
-					int sum = 0;
-					for (int c = 0; c < channels; ++c) sum += decoded[i * channels + c];
-					mono[i] = (short)(sum / channels);
-				}
-				fmt = AL_FORMAT_MONO16;
-				alBufferData(buffer, fmt, mono.data(),
-					(ALsizei)(samples * sizeof(short)), sampleRate);
+		struct stat st;
+		if (stat(filename.c_str(), &st) != 0) {
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("OGG stat failed: {}", filename).c_str());
+		}
+		else {
+			if (gx_runtime) gx_runtime->debugLog("OGG file exists, decoding...");
+
+			int  channels = 0;
+			int  sampleRate = 0;
+			short* decoded = nullptr;
+			int totalSamples = stb_vorbis_decode_filename(filename.c_str(), &channels, &sampleRate, &decoded);
+
+			if (gx_runtime) gx_runtime->debugLog(std::format("stb_vorbis returned: samples={}, channels={}, rate={}", totalSamples, channels, sampleRate).c_str());
+
+			if (totalSamples <= 0 || !decoded) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("OGG decode failed, code={}", totalSamples).c_str());
+				if (decoded) free(decoded);
 			}
 			else {
-				fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-				alBufferData(buffer, fmt, decoded,
-					(ALsizei)(samples * channels * sizeof(short)), sampleRate);
+				outFreq = sampleRate;
+				ALenum fmt;
+
+				if (forceMono && channels > 1) {
+					int frames = totalSamples / channels;
+					std::vector<short> mono(frames);
+					for (int i = 0; i < frames; ++i) {
+						int sum = 0;
+						for (int c = 0; c < channels; ++c)
+							sum += decoded[i * channels + c];
+						mono[i] = (short)(sum / channels);
+					}
+					fmt = AL_FORMAT_MONO16;
+					alBufferData(buffer, fmt, mono.data(), (ALsizei)(frames * sizeof(short)), sampleRate);
+				}
+				else {
+					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
+					alBufferData(buffer, fmt, decoded, (ALsizei)(totalSamples * sizeof(short)), sampleRate);
+				}
+
+				free(decoded);
+				err = alGetError();
+				if (err == AL_NO_ERROR) {
+					ok = true;
+					if (gx_runtime) gx_runtime->debugLog("alBufferData succeeded for OGG");
+				}
+				else {
+					if (gx_runtime) gx_runtime->debugLog(
+						std::format("alBufferData failed for OGG, error={}", err).c_str());
+				}
 			}
-			free(decoded);
-			ok = (alGetError() == AL_NO_ERROR);
 		}
-		else if (decoded) {
-			free(decoded);
-		}
+	}
+	else {
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("Unknown extension: {}", ext).c_str());
 	}
 
 	if (!ok) {
 		alDeleteBuffers(1, &buffer);
+		if (gx_runtime) gx_runtime->debugLog("loadALBuffer failed, buffer deleted");
 		return AL_NONE;
 	}
+
+	if (gx_runtime) gx_runtime->debugLog(
+		std::format("loadALBuffer success, buffer={}, freq={}", buffer, outFreq).c_str());
 	return buffer;
 }
 
@@ -167,18 +240,18 @@ struct SoundChannel : public gxChannel {
 
 	SoundChannel() : src(AL_NONE), nativeFreq(44100) {
 		alGenSources(1, &src);
-		alSourcef(src, AL_ROLLOFF_FACTOR, 1.0f);
+		alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
+		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
 	}
 	~SoundChannel() override {
 		if (src != AL_NONE) {
 			alSourceStop(src);
+			alSourcei(src, AL_BUFFER, AL_NONE); // detach before source delete
 			alDeleteSources(1, &src);
 		}
 	}
 
-	void stop() override {
-		alSourceStop(src);
-	}
+	void stop() override { alSourceStop(src); }
 	void setPaused(bool paused) override {
 		if (paused) alSourcePause(src);
 		else        alSourcePlay(src);
@@ -194,9 +267,9 @@ struct SoundChannel : public gxChannel {
 		alSourcef(src, AL_GAIN, volume);
 	}
 	void setPan(float pan) override {
-		alSource3f(src, AL_POSITION, pan, 0.0f, 0.0f);
-		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
 		alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
+		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
+		alSource3f(src, AL_POSITION, pan, 0.0f, 0.0f);
 	}
 	void set3d(const float pos[3], const float vel[3]) override {
 		alSourcei(src, AL_SOURCE_RELATIVE, AL_FALSE);
@@ -216,6 +289,8 @@ struct StreamChannel : public gxChannel {
 
 	explicit StreamChannel(ALuint alBuffer, bool loop) : src(AL_NONE) {
 		alGenSources(1, &src);
+		alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
+		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
 		alSourcei(src, AL_BUFFER, (ALint)alBuffer);
 		alSourcei(src, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
 		alSourcef(src, AL_GAIN, 1.0f);
@@ -224,6 +299,7 @@ struct StreamChannel : public gxChannel {
 	~StreamChannel() override {
 		if (src != AL_NONE) {
 			alSourceStop(src);
+			alSourcei(src, AL_BUFFER, AL_NONE);
 			alDeleteSources(1, &src);
 		}
 	}
@@ -283,9 +359,18 @@ static SoundChannel* allocSoundChannel() {
 		if (!c) {
 			c = soundChannels[idx] = new SoundChannel();
 			channels.push_back(c);
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("allocSoundChannel: created new at slot {}", idx).c_str());
+			next_chan = (int)((idx + 1) % soundChannels.size());
+			return c;
 		}
 		if (!c->isPlaying()) {
+			// detach old buffer on reuse so we never hold a stale ref
+			alSourceStop(c->src);
+			alSourcei(c->src, AL_BUFFER, AL_NONE);
 			next_chan = (int)((idx + 1) % soundChannels.size());
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("allocSoundChannel: reusing slot {}", idx).c_str());
 			return c;
 		}
 	}
@@ -295,6 +380,8 @@ static SoundChannel* allocSoundChannel() {
 	SoundChannel* c = soundChannels[oldSize] = new SoundChannel();
 	channels.push_back(c);
 	next_chan = (int)(oldSize + 1);
+	if (gx_runtime) gx_runtime->debugLog(
+		std::format("allocSoundChannel: grew pool to {}, new at {}", oldSize * 2, oldSize).c_str());
 	return c;
 }
 
@@ -313,44 +400,45 @@ gxAudio::~gxAudio() {
 	for (auto& kv : song_buffers) alDeleteBuffers(1, &kv.second);
 	song_buffers.clear();
 	songs.clear();
-
-	if (al_context) {
-		alcMakeContextCurrent(nullptr);
-		alcDestroyContext(al_context);
-		al_context = nullptr;
-	}
-	if (al_device) {
-		alcCloseDevice(al_device);
-		al_device = nullptr;
-	}
 }
 
 gxChannel* gxAudio::play(gxSound* sound) {
+	if (gx_runtime) gx_runtime->debugLog(
+		std::format("play: buffer={}, loop={}", sound->getBuffer(), sound->isLooping()).c_str());
+
 	SoundChannel* chan = allocSoundChannel();
+	if (!chan) {
+		if (gx_runtime) gx_runtime->debugLog("allocSoundChannel returned nullptr!");
+		return nullptr;
+	}
 	chan->nativeFreq = sound->getFreq();
 
-	alSourcei(chan->src, AL_BUFFER, (ALint)sound->getBuffer());
-	alSourcei(chan->src, AL_LOOPING, sound->isLooping() ? AL_TRUE : AL_FALSE);
-	alSourcef(chan->src, AL_GAIN, sound->getVol());
 	alSourcei(chan->src, AL_SOURCE_RELATIVE, AL_TRUE);
 	alSourcef(chan->src, AL_ROLLOFF_FACTOR, 0.0f);
 	alSource3f(chan->src, AL_POSITION, sound->getPan(), 0.0f, 0.0f);
+	alSourcei(chan->src, AL_BUFFER, (ALint)sound->getBuffer());
+	alSourcei(chan->src, AL_LOOPING, sound->isLooping() ? AL_TRUE : AL_FALSE);
+	alSourcef(chan->src, AL_GAIN, sound->getVol());
 	alSourcePlay(chan->src);
+	logALError("play");
+	if (gx_runtime) gx_runtime->debugLog("play: alSourcePlay called");
 	return chan;
 }
 
 gxChannel* gxAudio::play3d(gxSound* sound, const float pos[3], const float vel[3]) {
 	SoundChannel* chan = allocSoundChannel();
+	if (!chan) return nullptr;
 	chan->nativeFreq = sound->getFreq();
 
-	alSourcei(chan->src, AL_BUFFER, (ALint)sound->getBuffer());
-	alSourcei(chan->src, AL_LOOPING, sound->isLooping() ? AL_TRUE : AL_FALSE);
-	alSourcef(chan->src, AL_GAIN, sound->getVol());
 	alSourcei(chan->src, AL_SOURCE_RELATIVE, AL_FALSE);
 	alSourcef(chan->src, AL_ROLLOFF_FACTOR, 1.0f);
 	alSource3f(chan->src, AL_POSITION, pos[0], pos[1], pos[2]);
 	alSource3f(chan->src, AL_VELOCITY, vel[0], vel[1], vel[2]);
+	alSourcei(chan->src, AL_BUFFER, (ALint)sound->getBuffer());
+	alSourcei(chan->src, AL_LOOPING, sound->isLooping() ? AL_TRUE : AL_FALSE);
+	alSourcef(chan->src, AL_GAIN, sound->getVol());
 	alSourcePlay(chan->src);
+	logALError("play3d");
 	return chan;
 }
 
@@ -365,12 +453,27 @@ void gxAudio::resume() {
 }
 
 gxSound* gxAudio::loadSound(const std::string& filename, bool use3d) {
+	std::string key = makeCacheKey(filename, use3d);
+	auto it = soundCache.find(key);
+	if (it != soundCache.end()) {
+		it->second.refCount++;
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("Cache hit: {} (refcount={})", filename, it->second.refCount).c_str());
+		return it->second.sound;
+	}
+
 	int freq = 44100;
 	ALuint buf = loadALBuffer(filename, use3d, freq);
-	if (buf == AL_NONE) return nullptr;
-
+	if (buf == AL_NONE) {
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("loadSound: loadALBuffer failed for {}", filename).c_str());
+		return nullptr;
+	}
 	gxSound* sound = new gxSound(this, buf, freq);
 	sound_set.insert(sound);
+	soundCache[key] = { sound, 1 };
+	if (gx_runtime) gx_runtime->debugLog(
+		std::format("Cache new: {} (refcount=1)", filename).c_str());
 	return sound;
 }
 
@@ -379,19 +482,49 @@ gxSound* gxAudio::verifySound(gxSound* s) {
 }
 
 void gxAudio::freeSound(gxSound* s) {
-	if (!sound_set.erase(s)) return;
-	for (auto* c : soundChannels) {
-		if (!c) continue;
-		if (c->isPlaying()) {
-			ALint buf = AL_NONE;
-			alGetSourcei(c->src, AL_BUFFER, &buf);
-			if ((ALuint)buf == s->getBuffer()) {
+	for (auto it = soundCache.begin(); it != soundCache.end(); ++it) {
+		if (it->second.sound != s) continue;
+
+		it->second.refCount--;
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("FreeSound: {} refcount now {}", it->first, it->second.refCount).c_str());
+		if (it->second.refCount > 0) return;
+
+		soundCache.erase(it);
+		sound_set.erase(s);
+
+		// detach from ALL sources regardless of playing state because deleting a buffer still attached to any source even stopped WILL POISON ALL OF THEM!! WHAT THE FUCK!
+		ALuint targetBuf = s->getBuffer();
+		for (auto* c : soundChannels) {
+			if (!c) continue;
+			ALint attached = AL_NONE;
+			alGetSourcei(c->src, AL_BUFFER, &attached);
+			if ((ALuint)attached == targetBuf) {
 				alSourceStop(c->src);
 				alSourcei(c->src, AL_BUFFER, AL_NONE);
 			}
 		}
+
+		delete s;
+		if (gx_runtime) gx_runtime->debugLog("Sound deleted");
+		return;
 	}
-	delete s;
+
+	// not in cache
+	if (sound_set.erase(s)) {
+		ALuint targetBuf = s->getBuffer();
+		for (auto* c : soundChannels) {
+			if (!c) continue;
+			ALint attached = AL_NONE;
+			alGetSourcei(c->src, AL_BUFFER, &attached);
+			if ((ALuint)attached == targetBuf) {
+				alSourceStop(c->src);
+				alSourcei(c->src, AL_BUFFER, AL_NONE);
+			}
+		}
+		delete s;
+		if (gx_runtime) gx_runtime->debugLog("FreeSound: not in cache, deleted directly");
+	}
 }
 
 void gxAudio::setPaused(bool paused) {
@@ -424,7 +557,6 @@ void gxAudio::set3dListener(const float pos[3], const float vel[3],
 }
 
 gxChannel* gxAudio::playFile(const std::string& t, bool /*use3d*/, int mode) {
-
 	std::string f = t;
 	std::transform(f.begin(), f.end(), f.begin(),
 		[](unsigned char c) { return std::tolower(c); });
@@ -439,12 +571,20 @@ gxChannel* gxAudio::playFile(const std::string& t, bool /*use3d*/, int mode) {
 	auto bit = song_buffers.find(f);
 	if (bit != song_buffers.end()) {
 		buf = bit->second;
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("playFile: reusing buffer for {}", f).c_str());
 	}
 	else {
 		int freq = 44100;
 		buf = loadALBuffer(f, false, freq);
-		if (buf == AL_NONE) return nullptr;
+		if (buf == AL_NONE) {
+			if (gx_runtime) gx_runtime->debugLog(
+				std::format("playFile: failed to load {}", f).c_str());
+			return nullptr;
+		}
 		song_buffers[f] = buf;
+		if (gx_runtime) gx_runtime->debugLog(
+			std::format("playFile: loaded new buffer for {}", f).c_str());
 	}
 
 	bool loop = (mode == CD_MODE_LOOP || mode == CD_MODE_ALL);
@@ -460,6 +600,11 @@ gxChannel* gxAudio::playCDTrack(int /*track*/, int /*mode*/) {
 }
 
 bool gxAudio_Init() {
+	if (al_device && al_context) {
+		alcMakeContextCurrent(al_context);
+		alGetError();
+		return true;
+	}
 	al_device = alcOpenDevice(nullptr); // default output device
 	if (!al_device) return false;
 
@@ -472,4 +617,16 @@ bool gxAudio_Init() {
 	alcMakeContextCurrent(al_context);
 	alGetError(); // ignore any startup errors like regalis intended!
 	return true;
+}
+
+void gxAudio_Shutdown() {
+	if (al_context) {
+		alcMakeContextCurrent(nullptr);
+		alcDestroyContext(al_context);
+		al_context = nullptr;
+	}
+	if (al_device) {
+		alcCloseDevice(al_device);
+		al_device = nullptr;
+	}
 }

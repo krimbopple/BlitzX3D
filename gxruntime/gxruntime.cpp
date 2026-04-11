@@ -160,6 +160,7 @@ gxRuntime::gxRuntime(HINSTANCE hi, const std::string& cl, HWND hw) :
 gxRuntime::~gxRuntime() {
 	while(timers.size()) freeTimer(*timers.begin());
 	if(audio) closeAudio(audio);
+	gxAudio_Shutdown();
 	if(graphics) closeGraphics(graphics);
 	if(input) closeInput(input);
 	TIMECAPS tc;

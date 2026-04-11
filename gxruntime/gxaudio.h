@@ -5,12 +5,14 @@
 #include <set>
 #include <map>
 #include <vector>
+#include <unordered_map>
 
 #include "gxsound.h"
 
 class gxRuntime;
 
 bool gxAudio_Init();
+void gxAudio_Shutdown();
 
 class gxAudio {
 public:
@@ -27,6 +29,16 @@ public:
 
 private:
 	bool masterPaused;
+
+	struct SoundCacheEntry {
+		gxSound* sound;
+		int refCount;
+	};
+
+	std::unordered_map<std::string, SoundCacheEntry> soundCache;
+	std::string makeCacheKey(const std::string& filename, bool use3d) const {
+		return filename + "|" + (use3d ? "3d" : "2d");
+	}
 
 	/***** GX INTERFACE *****/
 public:

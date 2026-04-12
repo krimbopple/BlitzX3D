@@ -284,6 +284,7 @@ struct SoundChannel : public gxChannel {
 		alSourcef(src, AL_PITCH, ratio);
 	}
 	void setVolume(float volume) override {
+		if (src == AL_NONE) return;
 		if (volume < 0.0f) volume = 0.0f;
 		if (volume > 1.0f) volume = 1.0f;
 		alSourcef(src, AL_GAIN, volume);
@@ -300,6 +301,7 @@ struct SoundChannel : public gxChannel {
 		alSource3f(src, AL_VELOCITY, vel[0], vel[1], vel[2]);
 	}
 	bool isPlaying() override {
+		if (src == AL_NONE) return false;
 		ALint state = AL_STOPPED;
 		alGetSourcei(src, AL_SOURCE_STATE, &state);
 		return state == AL_PLAYING || state == AL_PAUSED;
@@ -330,11 +332,13 @@ struct StreamChannel : public gxChannel {
 
 	void stop() override { alSourceStop(src); }
 	void setPaused(bool paused) override {
+		if (src == AL_NONE) return;
 		if (paused) alSourcePause(src);
 		else        alSourcePlay(src);
 	}
 	void setPitch(int /*pitch*/) override {}  // not meaningful for music streams
 	void setVolume(float volume) override {
+		if (src == AL_NONE) return;
 		if (volume < 0.0f) volume = 0.0f;
 		if (volume > 1.0f) volume = 1.0f;
 		alSourcef(src, AL_GAIN, volume);
@@ -342,6 +346,7 @@ struct StreamChannel : public gxChannel {
 	void setPan(float /*pan*/) override {}
 	void set3d(const float[3], const float[3]) override {}
 	bool isPlaying() override {
+		if (src == AL_NONE) return false;
 		ALint state = AL_STOPPED;
 		alGetSourcei(src, AL_SOURCE_STATE, &state);
 		return state == AL_PLAYING || state == AL_PAUSED;

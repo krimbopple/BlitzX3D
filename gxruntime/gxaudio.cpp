@@ -247,6 +247,10 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 		err = alGetError();
 		if (err == AL_NO_ERROR) {
 			ok = true;
+			if (gx_runtime) gx_runtime->debugLog("loadALBuffer: alBufferData succeeded for OGG");
+		}
+		else if (err == AL_OUT_OF_MEMORY) {
+			if (gx_runtime) gx_runtime->debugLog(std::format("loadALBuffer: AL_OUT_OF_MEMORY uploading OGG cuz too many sounds loaded simultaneously: {}", filename).c_str());
 		}
 		else {
 			if (gx_runtime) gx_runtime->debugLog(std::format("loadALBuffer: alBufferData failed for OGG (error={}): {}", err, filename).c_str());
@@ -531,18 +535,23 @@ gxSound* gxAudio::loadSound(const std::string& filename, bool use3d) {
 		return it->second.sound;
 	}
 
+	if (failedSoundCache.count(key)) {
+		if (gx_runtime) gx_runtime->debugLog(std::format("loadSound: skipping previously failed load: {}", filename).c_str());
+		return nullptr;
+	}
+
 	int freq = 44100;
 	ALuint buf = loadALBuffer(filename, use3d, freq);
 	if (buf == AL_NONE) {
-		if (gx_runtime) gx_runtime->debugLog(
-			std::format("loadSound: loadALBuffer failed for {}", filename).c_str());
+		if (gx_runtime) gx_runtime->debugLog(std::format("loadSound: loadALBuffer failed for {}", filename).c_str());
+		failedSoundCache.insert(key);
 		return nullptr;
 	}
+
 	gxSound* sound = new gxSound(this, buf, freq);
 	sound_set.insert(sound);
 	soundCache[key] = { sound, 1 };
-	if (gx_runtime) gx_runtime->debugLog(
-		std::format("Cache new: {} (refcount=1)", filename).c_str());
+	if (gx_runtime) gx_runtime->debugLog(std::format("Cache new: {} (refcount=1)", filename).c_str());
 	return sound;
 }
 

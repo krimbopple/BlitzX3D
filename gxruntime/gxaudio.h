@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "gxsound.h"
 
@@ -36,6 +37,7 @@ private:
 	};
 
 	std::unordered_map<std::string, SoundCacheEntry> soundCache;
+	std::unordered_set<std::string> failedSoundCache;
 	std::string makeCacheKey(const std::string& filename, bool use3d) const {
 		return filename + "|" + (use3d ? "3d" : "2d");
 	}
@@ -49,6 +51,11 @@ public:
 	gxSound* loadSound(const std::string& filename, bool use3d);
 	gxSound* verifySound(gxSound* sound);
 	void     freeSound(gxSound* sound);
+
+	void clearFailedSoundCache() {
+		failedSoundCache.clear();
+		if (gx_runtime) gx_runtime->debugLog("failed sound cache cleared");
+	}
 
 	void setPaused(bool paused);   // master pause
 	void setVolume(float volume);  // master volume

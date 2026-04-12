@@ -72,6 +72,8 @@ gxChannel* bbPlaySound3D(gxSound* sound, float x, float y, float z,
 	return sound->play3d(pos, vel);
 }
 
+void bbClearFailedSoundCache() { if (gx_audio) gx_audio->clearFailedSoundCache(); }
+
 AsyncSoundHandle* bbLoadSoundAsync(BBStr* f) {
 	std::string t = *f; delete f;
 	if (!gx_audio) return nullptr;
@@ -198,6 +200,7 @@ void audio_link(void(*rtSym)(const char*, void*)) {
 	rtSym("SoundPan%sound#pan", bbSoundPan);
 	rtSym("%PlaySound%sound", bbPlaySound);
 	rtSym("%PlaySound3D%sound#x#y#z#vx=0#vy=0#vz=0", bbPlaySound3D);
+	rtSym("ClearFailedSoundCache", bbClearFailedSoundCache);
 
 	rtSym("%LoadSoundAsync$filename", bbLoadSoundAsync);
 	rtSym("%Load3DSoundAsync$filename", bbLoad3DSoundAsync);

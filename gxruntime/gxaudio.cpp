@@ -116,30 +116,37 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 		drwav wav;
 		if (drwav_init_file(&wav, filename.c_str(), nullptr)) {
 			drwav_uint64 frameCount = wav.totalPCMFrameCount;
-			unsigned int channels = wav.channels;
+			unsigned int nChannels = wav.channels;
 			unsigned int sampleRate = wav.sampleRate;
 			outFreq = (int)sampleRate;
 
-			std::vector<short> pcm(frameCount * channels);
-			drwav_uint64 read = drwav_read_pcm_frames_s16(&wav, frameCount, pcm.data());
-			drwav_uninit(&wav);
-
-			if (read > 0) {
-				ALenum fmt;
-				if (forceMono && channels > 1) {
-					drwav_uint64 mono = downmixToMono_s16(pcm.data(), read, channels);
-					fmt = AL_FORMAT_MONO16;
-					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
-				}
-				else {
-					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
-				}
-				ok = (alGetError() == AL_NO_ERROR);
-				if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for WAV");
+			drwav_uint64 totalSamples = frameCount * nChannels;
+			if (totalSamples > (drwav_uint64)(0x7FFFFFFF / sizeof(short))) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("WAV too large for LoadSound ({}MB), use StreamSound: {}", (int)(totalSamples * sizeof(short) / 1024 / 1024), filename).c_str());
+				drwav_uninit(&wav);
 			}
 			else {
-				if (gx_runtime) gx_runtime->debugLog("WAV: read 0 frames");
+				std::vector<short> pcm((size_t)totalSamples);
+				drwav_uint64 read = drwav_read_pcm_frames_s16(&wav, frameCount, pcm.data());
+				drwav_uninit(&wav);
+
+				if (read > 0) {
+					ALenum fmt;
+					if (forceMono && nChannels > 1) {
+						drwav_uint64 mono = downmixToMono_s16(pcm.data(), read, nChannels);
+						fmt = AL_FORMAT_MONO16;
+						alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
+					}
+					else {
+						fmt = (nChannels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
+						alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * nChannels * sizeof(short)), (ALsizei)sampleRate);
+					}
+					ok = (alGetError() == AL_NO_ERROR);
+					if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for WAV");
+				}
+				else {
+					if (gx_runtime) gx_runtime->debugLog("WAV: read 0 frames");
+				}
 			}
 		}
 		else {
@@ -151,36 +158,43 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 	else if (ext == "mp3") {
 		drmp3 mp3;
 		if (drmp3_init_file(&mp3, filename.c_str(), nullptr)) {
-			drmp3_uint32 channels = mp3.channels;
+			drmp3_uint32 nChannels = mp3.channels;
 			drmp3_uint32 sampleRate = mp3.sampleRate;
 			outFreq = (int)sampleRate;
 
 			drmp3_uint64 frameCount = drmp3_get_pcm_frame_count(&mp3);
-			std::vector<short> pcm(frameCount * channels);
-			drmp3_uint64 read = drmp3_read_pcm_frames_s16(&mp3, frameCount, pcm.data());
-			drmp3_uninit(&mp3);
+			drmp3_uint64 totalSamples = frameCount * nChannels;
 
-			if (read > 0) {
-				ALenum fmt;
-				if (forceMono && channels > 1) {
-					drmp3_uint64 mono = downmixToMono_mp3(pcm.data(), read, channels);
-					fmt = AL_FORMAT_MONO16;
-					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
-				}
-				else {
-					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-					alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * channels * sizeof(short)), (ALsizei)sampleRate);
-				}
-				ok = (alGetError() == AL_NO_ERROR);
-				if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for MP3");
+			if (totalSamples > (drmp3_uint64)(0x7FFFFFFF / sizeof(short))) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("MP3 too large for LoadSound ({}MB), use StreamSound: {}", (int)(totalSamples * sizeof(short) / 1024 / 1024), filename).c_str());
+				drmp3_uninit(&mp3);
 			}
 			else {
-				if (gx_runtime) gx_runtime->debugLog("MP3: read 0 frames");
+				std::vector<short> pcm((size_t)totalSamples);
+				drmp3_uint64 read = drmp3_read_pcm_frames_s16(&mp3, frameCount, pcm.data());
+				drmp3_uninit(&mp3);
+
+				if (read > 0) {
+					ALenum fmt;
+					if (forceMono && nChannels > 1) {
+						drmp3_uint64 mono = downmixToMono_mp3(pcm.data(), read, nChannels);
+						fmt = AL_FORMAT_MONO16;
+						alBufferData(buffer, fmt, pcm.data(), (ALsizei)(mono * sizeof(short)), (ALsizei)sampleRate);
+					}
+					else {
+						fmt = (nChannels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
+						alBufferData(buffer, fmt, pcm.data(), (ALsizei)(read * nChannels * sizeof(short)), (ALsizei)sampleRate);
+					}
+					ok = (alGetError() == AL_NO_ERROR);
+					if (!ok && gx_runtime) gx_runtime->debugLog("alBufferData failed for MP3");
+				}
+				else {
+					if (gx_runtime) gx_runtime->debugLog("MP3: read 0 frames");
+				}
 			}
 		}
 		else {
-			if (gx_runtime) gx_runtime->debugLog(
-				std::format("MP3: drmp3_init_file failed for {}", filename).c_str());
+			if (gx_runtime) gx_runtime->debugLog(std::format("MP3: drmp3_init_file failed for {}", filename).c_str());
 		}
 	}
 	// OGG vorbis.. like.. verbose logging..
@@ -380,7 +394,6 @@ static ALCdevice* al_device = nullptr;
 static ALCcontext* al_context = nullptr;
 
 static std::set<gxSound*>   sound_set;
-static std::vector<gxChannel*> channels;
 
 // cache of "music" streams
 static std::map<std::string, StreamChannel*> songs;
@@ -411,7 +424,6 @@ static SoundChannel* allocSoundChannel() {
 				break;
 			}
 			soundChannels[idx] = c;
-			channels.push_back(c);
 			if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: created new at slot {}", idx).c_str());
 			next_chan = (int)((idx + 1) % soundChannels.size());
 			return c;
@@ -452,15 +464,18 @@ gxAudio::gxAudio(gxRuntime* r) : runtime(r), masterPaused(false) {
 }
 
 gxAudio::~gxAudio() {
-	for (auto* c : channels) delete c;
-	channels.clear();
+	for (auto* c : soundChannels) delete c;
 	soundChannels.clear();
 
-	while (!sound_set.empty()) freeSound(*sound_set.begin());
+	for (auto& kv : songs) {
+		kv.second->stop();
+		delete kv.second;
+	}
+	songs.clear();
 
 	for (auto& kv : song_buffers) alDeleteBuffers(1, &kv.second);
 	song_buffers.clear();
-	songs.clear();
+	while (!sound_set.empty()) freeSound(*sound_set.begin());
 }
 
 gxChannel* gxAudio::play(gxSound* sound) {
@@ -622,6 +637,19 @@ gxChannel* gxAudio::playFile(const std::string& t, bool /*use3d*/, int mode) {
 	std::transform(f.begin(), f.end(), f.begin(),
 		[](unsigned char c) { return std::tolower(c); });
 
+	// stop and delete any song that is NOT the one we're about to play because it will leak memory
+	for (auto it = songs.begin(); it != songs.end(); ) {
+		if (it->first != f) {
+			if (gx_runtime) gx_runtime->debugLog(std::format("playFile: stopping orphaned song {}", it->first).c_str());
+			it->second->stop();
+			delete it->second;
+			it = songs.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
+
 	auto it = songs.find(f);
 	if (it != songs.end()) {
 		it->second->play();
@@ -650,11 +678,6 @@ gxChannel* gxAudio::playFile(const std::string& t, bool /*use3d*/, int mode) {
 
 	bool loop = (mode == CD_MODE_LOOP || mode == CD_MODE_ALL);
 	StreamChannel* chan = new StreamChannel(buf, loop);
-	if (chan->src == AL_NONE) {   // creation failed
-		delete chan;
-		return nullptr;
-	}
-	channels.push_back(chan);
 	songs[f] = chan;
 	return chan;
 }

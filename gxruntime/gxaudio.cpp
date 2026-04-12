@@ -616,6 +616,10 @@ gxChannel* gxAudio::playFile(const std::string& t, bool /*use3d*/, int mode) {
 
 	bool loop = (mode == CD_MODE_LOOP || mode == CD_MODE_ALL);
 	StreamChannel* chan = new StreamChannel(buf, loop);
+	if (chan->src == AL_NONE) {   // creation failed
+		delete chan;
+		return nullptr;
+	}
 	channels.push_back(chan);
 	songs[f] = chan;
 	return chan;

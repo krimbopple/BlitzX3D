@@ -605,6 +605,11 @@ void gxAudio::freeSound(gxSound* s) {
 	}
 }
 
+void gxAudio::clearFailedSoundCache() {
+	failedSoundCache.clear();
+	if (gx_runtime) gx_runtime->debugLog("failed sound cache cleared");
+}
+
 void gxAudio::setPaused(bool paused) {
 	if (paused) pause(); else resume();
 }

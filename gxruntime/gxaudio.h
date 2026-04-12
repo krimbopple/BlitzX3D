@@ -52,10 +52,7 @@ public:
 	gxSound* verifySound(gxSound* sound);
 	void     freeSound(gxSound* sound);
 
-	void clearFailedSoundCache() {
-		failedSoundCache.clear();
-		if (gx_runtime) gx_runtime->debugLog("failed sound cache cleared");
-	}
+	void clearFailedSoundCache();
 
 	void setPaused(bool paused);   // master pause
 	void setVolume(float volume);  // master volume

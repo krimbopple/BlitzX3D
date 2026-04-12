@@ -323,11 +323,17 @@ struct SoundChannel : public gxChannel {
 		alSource3f(src, AL_POSITION, pos[0], pos[1], pos[2]);
 		alSource3f(src, AL_VELOCITY, vel[0], vel[1], vel[2]);
 	}
-	bool isPlaying() override {
+	bool isOccupied() {
 		if (src == AL_NONE) return false;
 		ALint state = AL_STOPPED;
 		alGetSourcei(src, AL_SOURCE_STATE, &state);
 		return state == AL_PLAYING || state == AL_PAUSED;
+	}
+	bool isPlaying() override {
+		if (src == AL_NONE) return false;
+		ALint state = AL_STOPPED;
+		alGetSourcei(src, AL_SOURCE_STATE, &state);
+		return state == AL_PLAYING; // PAUSED is NOT playing from BB
 	}
 };
 
@@ -407,45 +413,54 @@ static const int MAX_SOUND_CHANNELS = 255 - MAX_STREAM_SOURCES; // = 247
 
 static SoundChannel* allocSoundChannel() {
 	SoundChannel* evictCandidate = nullptr;
-	int evictIdx = -1;
+	int           evictIdx = -1;
+	float         evictVolume = 2.0f;
+	float         evictOffset = -1.0f;
 
 	for (size_t i = 0; i < soundChannels.size(); ++i) {
 		size_t idx = (next_chan + i) % soundChannels.size();
 		SoundChannel* c = soundChannels[idx];
 
 		if (!c) {
-			if ((int)idx >= MAX_SOUND_CHANNELS) continue;
 			c = new SoundChannel();
 			if (!c->valid()) {
 				delete c;
 				if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: source limit hit at slot {}, will evict", idx).c_str());
-				break;
+				break; // AL source cap hit
 			}
 			soundChannels[idx] = c;
 			if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: created new at slot {}", idx).c_str());
-			next_chan = (int)((idx + 1) % soundChannels.size());
+			// let scan find closest free slot naturally
 			return c;
 		}
 
 		if (!c->valid()) continue;
 
-		if (!c->isPlaying()) {
+		if (!c->isOccupied()) {
 			// detach old buffer on reuse so we never hold a stale ref
 			alSourceStop(c->src);
 			alSourcei(c->src, AL_BUFFER, AL_NONE);
 			if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: reusing slot {}", idx).c_str());
-			next_chan = (int)((idx + 1) % soundChannels.size());
 			return c;
 		}
 
-		if (!evictCandidate) {
+		float vol = 2.0f;
+		alGetSourcef(c->src, AL_GAIN, &vol);
+		float offset = 0.0f;
+		alGetSourcef(c->src, AL_SEC_OFFSET, &offset);
+
+		bool better = !evictCandidate || vol < evictVolume - 0.01f || (vol < evictVolume + 0.01f && offset > evictOffset);
+
+		if (better) {
 			evictCandidate = c;
 			evictIdx = (int)idx;
+			evictVolume = vol;
+			evictOffset = offset;
 		}
 	}
-	// if all slots are full we grow grow grow
+
 	if (evictCandidate) {
-		if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: all sources busy, evicting slot {}", evictIdx).c_str());
+		if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: evicting slot {} (vol={:.2f}, offset={:.2f}s)", evictIdx, evictVolume, evictOffset).c_str());
 		alSourceStop(evictCandidate->src);
 		alSourcei(evictCandidate->src, AL_BUFFER, AL_NONE);
 		next_chan = (int)((evictIdx + 1) % soundChannels.size());
@@ -575,11 +590,18 @@ void gxAudio::freeSound(gxSound* s) {
 		// detach from ALL sources regardless of playing state because deleting a buffer still attached to any source even stopped WILL POISON ALL OF THEM!! WHAT THE FUCK!
 		ALuint targetBuf = s->getBuffer();
 		for (auto* c : soundChannels) {
-			if (!c) continue;
+			if (!c || !c->valid()) continue;
 			ALint attached = AL_NONE;
 			alGetSourcei(c->src, AL_BUFFER, &attached);
-			if ((ALuint)attached == targetBuf) {
-				alSourceStop(c->src);
+			if ((ALuint)attached != targetBuf) continue;
+
+			ALint state = AL_STOPPED;
+			alGetSourcei(c->src, AL_SOURCE_STATE, &state);
+
+			if (state == AL_PLAYING || state == AL_PAUSED) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("freeSound: leaving playing source attached to buffer {} (will detach when done)", targetBuf).c_str());
+			}
+			else {
 				alSourcei(c->src, AL_BUFFER, AL_NONE);
 			}
 		}
@@ -593,11 +615,18 @@ void gxAudio::freeSound(gxSound* s) {
 	if (sound_set.erase(s)) {
 		ALuint targetBuf = s->getBuffer();
 		for (auto* c : soundChannels) {
-			if (!c) continue;
+			if (!c || !c->valid()) continue;
 			ALint attached = AL_NONE;
 			alGetSourcei(c->src, AL_BUFFER, &attached);
-			if ((ALuint)attached == targetBuf) {
-				alSourceStop(c->src);
+			if ((ALuint)attached != targetBuf) continue;
+
+			ALint state = AL_STOPPED;
+			alGetSourcei(c->src, AL_SOURCE_STATE, &state);
+
+			if (state == AL_PLAYING || state == AL_PAUSED) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("freeSound: leaving playing source attached to buffer {} (will detach when done)", targetBuf).c_str());
+			}
+			else {
 				alSourcei(c->src, AL_BUFFER, AL_NONE);
 			}
 		}
@@ -625,7 +654,7 @@ void gxAudio::set3dOptions(float roll, float dopp, float dist) {
 	alDopplerFactor(dopp);
 	alSpeedOfSound(343.3f * dist);
 	for (auto* c : soundChannels) {
-		if (c) alSourcef(c->src, AL_ROLLOFF_FACTOR, roll);
+		if (c && c->valid()) alSourcef(c->src, AL_ROLLOFF_FACTOR, roll);
 	}
 }
 

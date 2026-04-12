@@ -181,7 +181,15 @@ static void asyncShutdown() {
 
 gxStreamChannel::gxStreamChannel(const std::string& filename, bool loop) : _filename(filename), _loop(loop)
 {
+    alGetError();
     alGenSources(1, &_src);
+    if (alGetError() != AL_NO_ERROR) {
+        _src = AL_NONE;
+        _openFailed = true;
+        streamLog(std::format("alGenSources failed (out of AL sources): {}", filename));
+        return;
+    }
+
     alSourcei(_src, AL_SOURCE_RELATIVE, AL_TRUE);
     alSourcef(_src, AL_ROLLOFF_FACTOR, 0.0f);
 

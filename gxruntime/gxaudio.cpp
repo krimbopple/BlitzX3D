@@ -402,7 +402,8 @@ static int next_chan = 0;
 static std::vector<SoundChannel*> soundChannels;
 
 // !! OpenAL soft defaults to 256 simultaneous sources so trying to create more will just waste memory and produce invalid channels !!
-static const int MAX_SOUND_CHANNELS = 255; // music / streams is left at 1
+static const int MAX_STREAM_SOURCES = 8;
+static const int MAX_SOUND_CHANNELS = 255 - MAX_STREAM_SOURCES; // = 247
 
 static SoundChannel* allocSoundChannel() {
 	SoundChannel* evictCandidate = nullptr;

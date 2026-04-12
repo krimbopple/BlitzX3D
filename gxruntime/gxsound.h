@@ -32,6 +32,7 @@ public:
 	void setVolume(float volume);
 	void setPan(float pan);
 
+	void transferBuffer();
 	unsigned int getBuffer() const { return alBuffer; }
 	bool   isLooping()       const { return looping; }
 	int    getFreq()         const { return def_freq; }

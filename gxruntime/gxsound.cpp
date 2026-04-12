@@ -10,7 +10,10 @@ gxSound::gxSound(gxAudio* a, unsigned int buf, int freq)
 }
 
 gxSound::~gxSound() {
-	alDeleteBuffers(1, &alBuffer);
+	if (alBuffer != AL_NONE) {
+		alDeleteBuffers(1, &alBuffer);
+		alBuffer = AL_NONE;
+	}
 }
 
 gxChannel* gxSound::play() {
@@ -37,4 +40,8 @@ void gxSound::setVolume(float volume) {
 void gxSound::setPan(float pan) {
 	// keep within -1,+1
 	def_pan = pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan);
+}
+
+void gxSound::transferBuffer() {
+	alBuffer = AL_NONE; // caller owns deletion responsibility
 }

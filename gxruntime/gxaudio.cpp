@@ -270,6 +270,7 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 struct SoundChannel : public gxChannel {
 	ALuint src;
 	int    nativeFreq; // base freq for pitch
+	ALuint orphanedBuffer = AL_NONE;
 
 	SoundChannel() : src(AL_NONE), nativeFreq(44100) {
 		alGetError();
@@ -291,6 +292,14 @@ struct SoundChannel : public gxChannel {
 	}
 
 	bool valid() const { return src != AL_NONE; }
+	void cleanup() {
+		alSourceStop(src);
+		alSourcei(src, AL_BUFFER, AL_NONE);
+		if (orphanedBuffer != AL_NONE) {
+			alDeleteBuffers(1, &orphanedBuffer);
+			orphanedBuffer = AL_NONE;
+		}
+	}
 
 	void stop() override { if (src != AL_NONE) alSourceStop(src); }
 	void setPaused(bool paused) override {
@@ -613,6 +622,7 @@ void gxAudio::freeSound(gxSound* s) {
 
 	// not in cache
 	if (sound_set.erase(s)) {
+		bool anyStillPlaying = false;
 		ALuint targetBuf = s->getBuffer();
 		for (auto* c : soundChannels) {
 			if (!c || !c->valid()) continue;
@@ -624,11 +634,16 @@ void gxAudio::freeSound(gxSound* s) {
 			alGetSourcei(c->src, AL_SOURCE_STATE, &state);
 
 			if (state == AL_PLAYING || state == AL_PAUSED) {
-				if (gx_runtime) gx_runtime->debugLog(std::format("freeSound: leaving playing source attached to buffer {} (will detach when done)", targetBuf).c_str());
+				anyStillPlaying = true;
+				c->orphanedBuffer = targetBuf;
 			}
 			else {
 				alSourcei(c->src, AL_BUFFER, AL_NONE);
 			}
+		}
+
+		if (anyStillPlaying) {
+			s->transferBuffer();
 		}
 		delete s;
 		if (gx_runtime) gx_runtime->debugLog("FreeSound: not in cache, deleted directly");

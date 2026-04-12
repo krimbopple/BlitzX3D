@@ -207,7 +207,7 @@ void audio_link(void(*rtSym)(const char*, void*)) {
 	rtSym("FreeAsyncSound%handle", bbFreeAsyncSound);
 
 	rtSym("%OpenStreamSound$filename%loop=0", bbOpenStreamSound);
-	rtSym("%StreamSound$filename#volume=1.0%loop=0", bbStreamSound);
+	rtSym("%StreamSound$filename#volume%loop=0", bbStreamSound);
 	rtSym("FreeStreamSound%channel", bbFreeStreamSound);
 	rtSym("StopStream%channel", bbStopStream);
 	rtSym("SetStreamVolume%channel#volume", bbSetStreamVolume);

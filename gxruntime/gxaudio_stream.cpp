@@ -387,34 +387,41 @@ void gxStreamChannel::update() {
 }
 
 void gxStreamChannel::stop() {
+    if (_src == AL_NONE) return;
     alSourceStop(_src);
     _finished = true;
 }
 
 void gxStreamChannel::setPaused(bool paused) {
+    if (_src == AL_NONE) return;
     if (paused) alSourcePause(_src);
     else        alSourcePlay(_src);
 }
 
 void gxStreamChannel::setPitch(int pitch) {
+    if (_src == AL_NONE) return;
+    if (_sampleRate == 0) _sampleRate = 44100;
     float ratio = (float)pitch / (float)(_sampleRate > 0 ? _sampleRate : 44100);
     if (ratio <= 0.0f) ratio = 0.001f;
     alSourcef(_src, AL_PITCH, ratio);
 }
 
 void gxStreamChannel::setVolume(float volume) {
+    if (_src == AL_NONE) return;
     if (volume < 0.0f) volume = 0.0f;
     if (volume > 1.0f) volume = 1.0f;
     alSourcef(_src, AL_GAIN, volume);
 }
 
 void gxStreamChannel::setPan(float pan) {
+    if (_src == AL_NONE) return;
     alSourcei(_src, AL_SOURCE_RELATIVE, AL_TRUE);
     alSourcef(_src, AL_ROLLOFF_FACTOR, 0.0f);
     alSource3f(_src, AL_POSITION, pan, 0.0f, 0.0f);
 }
 
 void gxStreamChannel::set3d(const float pos[3], const float vel[3]) {
+    if (_src == AL_NONE) return;
     alSourcei(_src, AL_SOURCE_RELATIVE, AL_FALSE);
     alSourcef(_src, AL_ROLLOFF_FACTOR, 1.0f);
     alSource3f(_src, AL_POSITION, pos[0], pos[1], pos[2]);
@@ -422,6 +429,7 @@ void gxStreamChannel::set3d(const float pos[3], const float vel[3]) {
 }
 
 bool gxStreamChannel::isPlaying() {
+    if (_src == AL_NONE) return false;
     ALint state = AL_STOPPED;
     alGetSourcei(_src, AL_SOURCE_STATE, &state);
     return (state == AL_PLAYING || state == AL_PAUSED) && !_finished;

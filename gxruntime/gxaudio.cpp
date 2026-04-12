@@ -261,7 +261,13 @@ struct SoundChannel : public gxChannel {
 	int    nativeFreq; // base freq for pitch
 
 	SoundChannel() : src(AL_NONE), nativeFreq(44100) {
+		alGetError();
 		alGenSources(1, &src);
+		if (alGetError() != AL_NO_ERROR) {
+			src = AL_NONE;
+			if (gx_runtime) gx_runtime->debugLog("SoundChannel: alGenSources FAILED (AL source limit hit)");
+			return;
+		}
 		alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
 		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
 	}
@@ -273,12 +279,16 @@ struct SoundChannel : public gxChannel {
 		}
 	}
 
-	void stop() override { alSourceStop(src); }
+	bool valid() const { return src != AL_NONE; }
+
+	void stop() override { if (src != AL_NONE) alSourceStop(src); }
 	void setPaused(bool paused) override {
+		if (src == AL_NONE) return;
 		if (paused) alSourcePause(src);
 		else        alSourcePlay(src);
 	}
 	void setPitch(int pitch) override {
+		if (src == AL_NONE) return;
 		float ratio = (nativeFreq > 0) ? (float)pitch / (float)nativeFreq : 1.0f;
 		if (ratio <= 0.0f) ratio = 0.001f;
 		alSourcef(src, AL_PITCH, ratio);
@@ -290,11 +300,13 @@ struct SoundChannel : public gxChannel {
 		alSourcef(src, AL_GAIN, volume);
 	}
 	void setPan(float pan) override {
+		if (src == AL_NONE) return;
 		alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
 		alSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
 		alSource3f(src, AL_POSITION, pan, 0.0f, 0.0f);
 	}
 	void set3d(const float pos[3], const float vel[3]) override {
+		if (src == AL_NONE) return;
 		alSourcei(src, AL_SOURCE_RELATIVE, AL_FALSE);
 		alSourcef(src, AL_ROLLOFF_FACTOR, 1.0f);
 		alSource3f(src, AL_POSITION, pos[0], pos[1], pos[2]);
@@ -379,42 +391,64 @@ static NullChannel  s_nullChannel;
 static int next_chan = 0;
 static std::vector<SoundChannel*> soundChannels;
 
+// !! OpenAL soft defaults to 256 simultaneous sources so trying to create more will just waste memory and produce invalid channels !!
+static const int MAX_SOUND_CHANNELS = 255; // music / streams is left at 1
+
 static SoundChannel* allocSoundChannel() {
+	SoundChannel* evictCandidate = nullptr;
+	int evictIdx = -1;
+
 	for (size_t i = 0; i < soundChannels.size(); ++i) {
 		size_t idx = (next_chan + i) % soundChannels.size();
 		SoundChannel* c = soundChannels[idx];
+
 		if (!c) {
-			c = soundChannels[idx] = new SoundChannel();
+			if ((int)idx >= MAX_SOUND_CHANNELS) continue;
+			c = new SoundChannel();
+			if (!c->valid()) {
+				delete c;
+				if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: source limit hit at slot {}, will evict", idx).c_str());
+				break;
+			}
+			soundChannels[idx] = c;
 			channels.push_back(c);
-			if (gx_runtime) gx_runtime->debugLog(
-				std::format("allocSoundChannel: created new at slot {}", idx).c_str());
+			if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: created new at slot {}", idx).c_str());
 			next_chan = (int)((idx + 1) % soundChannels.size());
 			return c;
 		}
+
+		if (!c->valid()) continue;
+
 		if (!c->isPlaying()) {
 			// detach old buffer on reuse so we never hold a stale ref
 			alSourceStop(c->src);
 			alSourcei(c->src, AL_BUFFER, AL_NONE);
+			if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: reusing slot {}", idx).c_str());
 			next_chan = (int)((idx + 1) % soundChannels.size());
-			if (gx_runtime) gx_runtime->debugLog(
-				std::format("allocSoundChannel: reusing slot {}", idx).c_str());
 			return c;
+		}
+
+		if (!evictCandidate) {
+			evictCandidate = c;
+			evictIdx = (int)idx;
 		}
 	}
 	// if all slots are full we grow grow grow
-	size_t oldSize = soundChannels.size();
-	soundChannels.resize(oldSize * 2, nullptr);
-	SoundChannel* c = soundChannels[oldSize] = new SoundChannel();
-	channels.push_back(c);
-	next_chan = (int)(oldSize + 1);
-	if (gx_runtime) gx_runtime->debugLog(
-		std::format("allocSoundChannel: grew pool to {}, new at {}", oldSize * 2, oldSize).c_str());
-	return c;
+	if (evictCandidate) {
+		if (gx_runtime) gx_runtime->debugLog(std::format("allocSoundChannel: all sources busy, evicting slot {}", evictIdx).c_str());
+		alSourceStop(evictCandidate->src);
+		alSourcei(evictCandidate->src, AL_BUFFER, AL_NONE);
+		next_chan = (int)((evictIdx + 1) % soundChannels.size());
+		return evictCandidate;
+	}
+
+	if (gx_runtime) gx_runtime->debugLog("allocSoundChannel: no channel available!");
+	return nullptr;
 }
 
 gxAudio::gxAudio(gxRuntime* r) : runtime(r), masterPaused(false) {
 	next_chan = 0;
-	soundChannels.resize(256, nullptr);
+	soundChannels.resize(MAX_SOUND_CHANNELS, nullptr);
 }
 
 gxAudio::~gxAudio() {

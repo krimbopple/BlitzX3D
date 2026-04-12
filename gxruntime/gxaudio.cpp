@@ -189,21 +189,20 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 
 		struct stat st;
 		if (stat(filename.c_str(), &st) != 0) {
-			if (gx_runtime) gx_runtime->debugLog(
-				std::format("OGG stat failed: {}", filename).c_str());
+			if (gx_runtime) gx_runtime->debugLog(std::format("OGG stat failed: {}", filename).c_str());
 		}
 		else {
 			if (gx_runtime) gx_runtime->debugLog("OGG file exists, decoding...");
 
-			int  channels = 0;
-			int  sampleRate = 0;
+			int channels = 0;
+			int sampleRate = 0;
 			short* decoded = nullptr;
-			int totalSamples = stb_vorbis_decode_filename(filename.c_str(), &channels, &sampleRate, &decoded);
+			int samplesPerChannel = stb_vorbis_decode_filename(filename.c_str(), &channels, &sampleRate, &decoded);
 
-			if (gx_runtime) gx_runtime->debugLog(std::format("stb_vorbis returned: samples={}, channels={}, rate={}", totalSamples, channels, sampleRate).c_str());
+			if (gx_runtime) gx_runtime->debugLog(std::format("stb_vorbis returned: samplesPerChannel={}, channels={}, rate={}", samplesPerChannel, channels, sampleRate).c_str());
 
-			if (totalSamples <= 0 || !decoded) {
-				if (gx_runtime) gx_runtime->debugLog(std::format("OGG decode failed, code={}", totalSamples).c_str());
+			if (samplesPerChannel <= 0 || !decoded) {
+				if (gx_runtime) gx_runtime->debugLog(std::format("OGG decode failed, code={}", samplesPerChannel).c_str());
 				if (decoded) free(decoded);
 			}
 			else {
@@ -211,7 +210,7 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 				ALenum fmt;
 
 				if (forceMono && channels > 1) {
-					int frames = totalSamples / channels;
+					int frames = samplesPerChannel;
 					std::vector<short> mono(frames);
 					for (int i = 0; i < frames; ++i) {
 						int sum = 0;
@@ -224,18 +223,18 @@ static unsigned int loadALBuffer(const std::string& filename, bool forceMono, in
 				}
 				else {
 					fmt = (channels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-					alBufferData(buffer, fmt, decoded, (ALsizei)(totalSamples * sizeof(short)), sampleRate);
+					ALsizei dataSize = (ALsizei)(samplesPerChannel * channels * sizeof(short));
+					alBufferData(buffer, fmt, decoded, dataSize, sampleRate);
 				}
 
 				free(decoded);
-				err = alGetError();
+				ALenum err = alGetError();
 				if (err == AL_NO_ERROR) {
 					ok = true;
 					if (gx_runtime) gx_runtime->debugLog("alBufferData succeeded for OGG");
 				}
 				else {
-					if (gx_runtime) gx_runtime->debugLog(
-						std::format("alBufferData failed for OGG, error={}", err).c_str());
+					if (gx_runtime) gx_runtime->debugLog(std::format("alBufferData failed for OGG, error={}", err).c_str());
 				}
 			}
 		}

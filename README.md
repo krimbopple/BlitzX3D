@@ -1,10 +1,10 @@
-# Blitz3D TSS
+# BlitzX3D
 
-This is a **fork** of [Blitz3D TSS](https://github.com/Saalvage/Blitz3D), made by [ZiYueCommentary](https://github.com/ZiYueCommentary/Blitz3D).
+This is a fork of Blitz3D TSS, originally based on Blitz3D and maintained by ZiYueCommentary.
 
-中文社区：https://forum.ziyuesinicization.site/t/blitz3d-tss
+This project was made to explore updates to rendering, audio, performance, and compatibility whilst keeping the original Blitz3D workflow intact.
 
-## Extending Blitz3D TSS
+## Extending BlitzX3D
 Please read [this document](EXTENDING.md).
 
 ## How to Build
@@ -23,11 +23,8 @@ Please read [this document](EXTENDING.md).
 2. Select Release or Debug config and rebuild the entire solution.
 3. All done! You can find output files in the `_release` and `_release/bin` dirs. Feel free to delete `.pdb` and `.ilk` files here.
 
-- **Note:** Blitz3D TSS uses the dynamic version of the fmod audio lib. 
-  
-  When redistributing programs built with Blitz3D TSS, you will need to also include the `fmod.dll` file found in the `bin` directory with your programs. 
-  
-  This should be placed in the same directory as your program's executable.
+- **Note:** BlitzX3D uses the OpenAL audio backend,
+when redistributing programs built with BlitzX3D, ensure the required OpenAL runtime libraries are included with your application if not already present on the system.
 
 ## In memory of Mark Sibly
 

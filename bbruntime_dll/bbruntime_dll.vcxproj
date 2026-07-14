@@ -164,7 +164,7 @@
       <AdditionalLibraryDirectories>$(DXSDK_DIR)Lib\x86;..\ffmpeg\lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(ProjectDir)..\ffmpeg\bin\*.dll" "$(ProjectDir)..\_release\bin\"</Command>
+      <Command>xcopy /Y /D "$(ProjectDir)..\ffmpeg\lib\*.dll" "$(ProjectDir)..\_release\bin\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

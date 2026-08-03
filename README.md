@@ -31,7 +31,7 @@ BlitzX3D Community License.
 ### Steps
 
 1. Open `blitz3d.sln` in Visual Studio 2022.
-2. Select the **Release** configuration and rebuild the entire solution.
+2. Select the **Release x86** configuration and rebuild the entire solution.
 3. All done! You can find the output files in the `_release` and `_release/bin` directories. Feel free to delete any `.pdb` and `.ilk` files.
 
 ## In Memory of Mark Sibly

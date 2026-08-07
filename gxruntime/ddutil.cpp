@@ -7,7 +7,7 @@
 
 extern gxRuntime* gx_runtime;
 
-#include "../freeimage/freeimage.h"
+#include <freeimage.h>
 
 static AsmCoder asm_coder;
 
@@ -307,6 +307,26 @@ IDirect3DTexture9* ddUtil::createTextureSurface(int w, int h, int flags, gxGraph
     HRESULT hr = dev->CreateTexture(w, h, mipLevels, usage, fmt, pool, &tex, nullptr);
     if (FAILED(hr)) return nullptr;
     return tex;
+}
+
+IDirect3DCubeTexture9* ddUtil::createCubeTextureSurface(int size, int flags, gxGraphics* gfx) {
+    IDirect3DDevice9* dev = gfx->dir3dDev;
+    if (!dev) return nullptr;
+
+    int w = size, h = size;
+    adjustTexSize(&w, &h, dev);
+    int adjSize = w > h ? w : h;
+
+    bool hasAlpha = (flags & gxCanvas::CANVAS_TEX_ALPHA) != 0;
+    bool hasMask = (flags & gxCanvas::CANVAS_TEX_MASK) != 0;
+
+    D3DFORMAT fmt = (hasAlpha || hasMask) ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
+    if (flags & gxCanvas::CANVAS_TEX_HICOLOR) fmt = D3DFMT_A4R4G4B4;
+
+    IDirect3DCubeTexture9* cubeTex = nullptr;
+    HRESULT hr = dev->CreateCubeTexture(adjSize, 1, D3DUSAGE_DYNAMIC, fmt, D3DPOOL_DEFAULT, &cubeTex, nullptr);
+    if (FAILED(hr)) return nullptr;
+    return cubeTex;
 }
 
 static void buildMask(FIBITMAP* fib, BYTE* bits, int pitch, int w, int h) {

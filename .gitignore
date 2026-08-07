@@ -19,3 +19,4 @@ _release/*.ttf
 *.zip
 temp
 linker/cryptseed.h
+llvm

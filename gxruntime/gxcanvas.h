@@ -78,6 +78,10 @@ private:
 
 	void updateBitMask(const RECT& r) const;
 
+	mutable int blit_batch_depth;
+	mutable bool blit_batch_active;
+	mutable void* blit_batch_saved;
+
 	/***** GX INTERFACE *****/
 public:
 	enum {
@@ -135,6 +139,9 @@ public:
 
 	bool collide(int x, int y, const gxCanvas* src, int src_x, int src_y, bool solid)const;
 	bool rect_collide(int x, int y, int rect_x, int rect_y, int rect_w, int rect_h, bool solid)const;
+
+	void beginBlitBatch() const;
+	void endBlitBatch() const;
 
 	bool lock()const;
 	bool isLocked()const { return locked_cnt > 0; }

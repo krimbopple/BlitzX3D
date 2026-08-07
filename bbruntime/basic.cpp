@@ -4,6 +4,7 @@
 #include "bbruntime.h"
 #include <unordered_map>
 #include <charconv>
+#include <psapi.h>
 
 //how many strings allocated
 static int stringCnt;
@@ -501,6 +502,21 @@ void bbRuntimeStats() {
 	// gx_runtime->debugLog(std::format(MultiLang::stats_strings, stringCnt).c_str());
 	gx_runtime->debugLog(std::format(MultiLang::stats_objects, objCnt).c_str());
 	gx_runtime->debugLog(std::format(MultiLang::stats_unreleased, unrelObjCnt).c_str());
+}
+
+BBMemStats bbGetMemStats() {
+	BBMemStats s;
+	s.objCnt = objCnt;
+	s.unrelObjCnt = unrelObjCnt;
+	s.stringCnt = stringCnt;
+	PROCESS_MEMORY_COUNTERS pmc;
+	if(GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+		s.workingSetBytes = (__int64)pmc.WorkingSetSize;
+	}
+	else {
+		s.workingSetBytes = 0;
+	}
+	return s;
 }
 
 bool basic_create() {

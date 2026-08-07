@@ -5,7 +5,7 @@
 
 #include "../gxruntime/gxutf8.h"
 
-#include "../freeimage/freeimage.h"
+#include <freeimage.h>
 
 #include <sstream>
 #include <shellapi.h>
@@ -690,6 +690,11 @@ void gxRuntime::debugInfo(const char* t) {
 //////////////
 void gxRuntime::debugLog(const char* t) {
 	if(debugger) debugger->debugLog(t);
+}
+
+//debugsys
+void gxRuntime::debugSys(void* msg) {
+	if (debugger) debugger->debugSys(msg);
 }
 
 /////////////////////////

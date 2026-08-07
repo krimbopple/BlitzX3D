@@ -61,11 +61,16 @@ static void collided(Object* src, Object* dest, const Line& line,
 }
 
 void World::clearCollisions() {
-	_collInfo.clear();
+	Scene* s = g_sceneManager.get(g_sceneManager.currentSceneId);
+	if (!s) s = g_sceneManager.get(0);
+	if (s) s->collisions.clear();
 }
 
 void World::addCollision(int src_type, int dst_type, int method, int response) {
-	auto& info = _collInfo[src_type];
+	Scene* s = g_sceneManager.get(g_sceneManager.currentSceneId);
+	if (!s) s = g_sceneManager.get(0);
+	if (!s) return;
+	auto& info = s->collisions[src_type];
 	for (const auto& t : info) {
 		if (dst_type == t.dst_type) return;
 	}
@@ -129,7 +134,7 @@ Object* World::traceRay(const Line& line, float radius, ObjCollision* curr_coll)
 //
 // NEW VERSION
 //
-void World::collide(Object* src) {
+void World::collide(Object* src, const std::vector<CollInfo>& collinfos, const std::unordered_map<int, std::vector<Object*>>& objsByType) {
 
 	static const int MAX_HITS = 10;
 
@@ -167,10 +172,6 @@ void World::collide(Object* src) {
 	float td = coll_line.d.length();
 	float td_xz = Vector(coll_line.d.x, 0, coll_line.d.z).length();
 
-	auto coll_info_it = _collInfo.find(src->getCollisionType());
-	if (coll_info_it == _collInfo.end()) return;
-	const std::vector<CollInfo>& collinfos = coll_info_it->second;
-
 	int hits = 0;
 	for(;;) {
 
@@ -179,14 +180,19 @@ void World::collide(Object* src) {
 		const CollInfo* winning_info = nullptr;
 
 		for (const auto& ci : collinfos) {
-			auto dst_it = _objsByType.find(ci.dst_type);
-			if (dst_it == _objsByType.end()) continue;
+			auto dst_it = objsByType.find(ci.dst_type);
+			if (dst_it == objsByType.end()) continue;
 
 			for (Object* dst : dst_it->second) {
 				if (src == dst) continue;
 				const Transform& dst_tform = dst->getPrevWorldTform();
-				bool hit = (y_scale == 1) ? hitTest(coll_line, radius, dst, dst_tform, ci.method, &coll) : hitTest(coll_line, radius, dst, y_tform * dst_tform, ci.method, &coll);
-				if (hit) { coll_obj = dst; winning_info = &ci; }
+				bool hit = (y_scale == 1) ?
+					hitTest(coll_line, radius, dst, dst_tform, ci.method, &coll) :
+					hitTest(coll_line, radius, dst, y_tform * dst_tform, ci.method, &coll);
+				if (hit) {
+					coll_obj = dst;
+					winning_info = &ci;
+				}
 			}
 		}
 		if(!coll_obj) break;
@@ -283,18 +289,26 @@ void World::update(float elapsed) {
 
 	enumEnabled();
 
+	Scene* curr = g_sceneManager.get(g_sceneManager.currentSceneId);
+	if (!curr) curr = g_sceneManager.get(0);
+	if (!curr) return; // should never happen
+
+	std::unordered_map<int, std::vector<Object*>> objsByType;
 	for (Object* o : _enabled) {
 		if (int n = o->getCollisionType())
-			_objsByType[n].push_back(o);
+			objsByType[n].push_back(o);
 	}
 
 	for (Object* o : _enabled) {
 		o->beginUpdate(elapsed);
-		if (o->getCollisionType()) collide(o);
+		if (o->getCollisionType()) {
+			auto it = curr->collisions.find(o->getCollisionType());
+			if (it != curr->collisions.end()) {
+				collide(o, it->second, objsByType);
+			}
+		}
 		o->endUpdate();
 	}
-
-	_objsByType.clear();
 }
 
 /****************************** Render *********************************/
@@ -341,19 +355,23 @@ void World::render(float tween) {
 	unord_mods.clear();
 
 	_visible.clear();
-	_lights.clear();
-	_mirrors.clear();
-	_listeners.clear();
+
+	Scene* curr = g_sceneManager.get(g_sceneManager.currentSceneId);
+	if (!curr) curr = g_sceneManager.get(0);
+	if (!curr) return; // should never happen
+	curr->lights.clear();
+	curr->mirrors.clear();
+	curr->listeners.clear();
 
 	enumVisible();
 
 	for (Object* o : _visible) {
 		if (!o->beginRender(tween)) continue;
 
-		if (Light* t = o->getLight())    _lights.push_back(t->getGxLight());
+		if (Light* t = o->getLight())    curr->lights.push_back(t->getGxLight());
 		else if (Camera* t = o->getCamera())   cam_que.push(t);
-		else if (Mirror* t = o->getMirror())   _mirrors.push_back(t);
-		else if (Listener* t = o->getListener()) _listeners.push_back(t);
+		else if (Mirror* t = o->getMirror())   curr->mirrors.push_back(t);
+		else if (Listener* t = o->getListener()) curr->listeners.push_back(t);
 		else if (Model* t = o->getModel()) {
 			if (t->getOrder()) ord_que.push(t);
 			else               unord_mods.push_back(t);
@@ -362,19 +380,19 @@ void World::render(float tween) {
 
 	while (!ord_que.empty()) { ord_mods.push_back(ord_que.top()); ord_que.pop(); }
 
-	if(!gx_scene->begin(_lights)) return;
+	if (!gx_scene->begin(curr->lights)) return;
 
 	while (!cam_que.empty()) {
 		Camera* cam = cam_que.top(); cam_que.pop();
 		if (!cam->beginRenderFrame()) continue;
 
-		for (Mirror* mir : _mirrors) render(cam, mir);
+		for (Mirror* mir : curr->mirrors) render(cam, mir);
 		render(cam, nullptr);
 	}
 
 	gx_scene->end();
 
-	for (Listener* lis : _listeners) lis->renderListener();
+	for (Listener* lis : curr->listeners) lis->renderListener();
 }
 
 void World::render(Camera* cam, Mirror* mirror) {

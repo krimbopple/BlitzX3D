@@ -110,6 +110,7 @@ public:
 	void setRenderState(const RenderState& state);
 	void setEffect(gxEffect* effect);
 	void setDepthTarget(gxCanvas* c) { depthTarget = c; }
+	void setBumpNormalize(bool enable) { bumpNormalize = enable; }
 
 	//rendering
 	bool begin(const std::vector<gxLight*>& lights);
@@ -159,6 +160,9 @@ private:
 	gxEffect* currentEffect;
 	D3DXMATRIX currentWorld, currentView, currentProj;
 	float eyePos[3];
+
+	bool bumpNormalize = false;
+	float bumpUniformScale = 1.0f;
 
 	std::set<gxLight*> _allLights;
 	std::vector<gxLight*> _curLights;

@@ -3,6 +3,7 @@
 #include "bbruntime.h"
 #include "../gxruntime/gxutf8.h"
 #include "../MultiLang/MultiLang.h"
+#include "../debugger/debugger.h"
 #include <codecvt>
 
 std::string* ErrorMessagePool::memoryAccessViolation = 0;
@@ -180,7 +181,33 @@ void bbDebugLog(BBStr* t) {
     delete t;
 }
 
+void bbDebugLogWarning(BBStr* t) {
+    std::string msg = "[WARNING] " + *t;
+    gx_runtime->debugLog(msg.c_str());
+    delete t;
+}
+
+void bbDebugLogError(BBStr* t) {
+    std::string msg = "[ERROR] " + *t;
+    gx_runtime->debugLog(msg.c_str());
+    delete t;
+}
+
 void _bbDebugStmt(int pos, const char* file) {
+    static int memPushCounter = 0;
+    if (++memPushCounter >= 2000) {
+        memPushCounter = 0;
+        extern BBMemStats bbGetMemStats();
+        BBMemStats ms = bbGetMemStats();
+        DbgSysMemStats sys;
+        sys.tag = DBGSYS_MEMSTATS;
+        sys.objCnt = ms.objCnt;
+        sys.unrelObjCnt = ms.unrelObjCnt;
+        sys.stringCnt = ms.stringCnt;
+        sys.workingSetBytes = ms.workingSetBytes;
+        gx_runtime->debugSys(&sys);
+    }
+
     if (gx_runtime->debugStmt(pos, file)) {
         return;
     }
@@ -264,6 +291,8 @@ void bbruntime_link(void (*rtSym)(const char* sym, void* pc)) {
     rtSym("SetClipboardContents$contents", bbSetClipboardContents);
     rtSym("MessageBox$title$text", bbMessageBox);
     rtSym("DebugLog$text", bbDebugLog);
+    rtSym("DebugLogWarning$text", bbDebugLogWarning);
+    rtSym("DebugLogError$text", bbDebugLogError);
 
     rtSym("_bbDebugStmt", _bbDebugStmt);
     rtSym("_bbDebugEnter", _bbDebugEnter);

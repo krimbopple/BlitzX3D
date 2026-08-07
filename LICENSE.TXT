@@ -6,7 +6,7 @@ where applicable.
 
 ===============================================================================
 BLITZX3D COMMUNITY LICENSE
-Version 1.0
+Version 1.1
 Effective Date: July 16, 2026
 
 Copyright (c) 2026-present Chris A. (krimbopple)
@@ -46,51 +46,51 @@ in the distributed software.
 Corresponding Source does not include unrelated proprietary source code owned
 by other parties.
 
-
-3. RIGHTS BEFORE THE TRANSITION DATE
-
-Before 00:00:00 UTC on July 16, 2026, any person may use, copy, modify,
-distribute, and incorporate BlitzX3D Contributions into other software without
-the source publication requirement described in Section 5.
+"Transition Date" means 00:00:00 UTC on July 16, 2026.
 
 
-4. PREVIOUSLY DISTRIBUTED SOFTWARE
+3. PERPETUAL GRANT OF PERMISSIONS
 
-Software that was first Distributed before 00:00:00 UTC on July 16, 2026
-remains governed by the permissions and obligations applicable at the time of
-that first Distribution.
+Subject to the terms and conditions of this license, Chris A. (krimbopple)
+hereby grants you a perpetual, worldwide, royalty-free, non-exclusive license
+to use, copy, modify, distribute, and incorporate BlitzX3D Contributions into
+other software.
 
-Such software is not required to comply with Section 5 solely because this
-license later takes effect.
-
-This exception applies only to versions first Distributed before the transition
-date.
+This grant does not expire. However, your rights under this Section 3 are
+expressly conditioned upon your compliance with Section 4 and may be terminated
+as set forth in Section 11.
 
 
-5. REQUIREMENTS AFTER THE TRANSITION DATE
+4. SOURCE PUBLICATION REQUIREMENT AND PREVIOUSLY DISTRIBUTED SOFTWARE
 
-Any software first Distributed on or after 00:00:00 UTC on July 16, 2026 that
-includes BlitzX3D Contributions must make the Corresponding Source for those
-BlitzX3D Contributions publicly available without charge.
+(a) If you first Distribute the BlitzX3D Contributions **before** the Transition
+Date, you are not required to comply with the Corresponding Source publication
+requirement in subsection (b). Such distributions remain governed by the
+permissions in Section 3 without the additional source obligation.
+
+(b) If you first Distribute the BlitzX3D Contributions **on or after** the
+Transition Date, you must make the Corresponding Source for those BlitzX3D
+Contributions publicly available without charge.
 
 The Corresponding Source must include:
 
   - the BlitzX3D Contributions included in the distributed software;
   - modifications made to those Contributions;
   - build scripts and configuration files required to build those Contributions;
-  - this license; and applicable copyright notices.
+  - this license; and
+  - applicable copyright notices.
 
 This requirement applies only to BlitzX3D Contributions and does not require
-disclosure of unrelated proprietary source code.
+disclosure of unrelated proprietary source code owned by other parties.
 
 
-6. MODIFICATION NOTICES
+5. MODIFICATION NOTICES
 
 Modified BlitzX3D Contribution files must retain existing copyright notices
 and must clearly indicate that modifications have been made.
 
 
-7. ATTRIBUTION
+6. ATTRIBUTION
 
 Copies or substantial portions of BlitzX3D Contributions distributed in source
 or binary form must include:
@@ -100,41 +100,31 @@ or binary form must include:
   - any additional notices required by the original authors.
 
 
-8. NO ADDITIONAL PERMISSIONS
-
-Except as expressly provided in this license, no additional rights are granted.
-
-All rights not expressly granted remain reserved.
-
-
-9. PATENT RIGHTS
+7. PATENT RIGHTS
 
 To the extent Chris A. (krimbopple) holds patent rights necessarily infringed
 by the BlitzX3D Contributions, such rights are licensed only for use of the
 BlitzX3D Contributions under the permissions expressly granted by this license.
 
-This patent license terminates automatically upon violation of this license.
+This patent license terminates automatically upon termination of the rights
+granted under Section 3.
 
 
-10. TERMINATION
+8. RESERVATION OF RIGHTS
 
-Any rights granted under this license automatically terminate if a recipient
-materially violates the terms of this license.
-
-Rights may be reinstated if:
-
-  - the violation is cured within thirty (30) days after receiving notice; or
-  - the copyright holder expressly reinstates the rights.
+All rights not expressly granted by this license are reserved by Chris A.
+(krimbopple). Nothing in this license shall be construed as granting any
+implied license or permission beyond the express terms stated herein.
 
 
-11. DISCLAIMER OF WARRANTY
+9. DISCLAIMER OF WARRANTY
 
 THE BLITZX3D CONTRIBUTIONS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
 
 
-12. LIMITATION OF LIABILITY
+10. LIMITATION OF LIABILITY
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, CHRIS A. (KRIMBOPPLE) SHALL NOT BE
 LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR RELATED TO
@@ -142,13 +132,30 @@ THE BLITZX3D CONTRIBUTIONS OR THEIR USE, WHETHER IN CONTRACT, TORT, OR
 OTHERWISE.
 
 
-13. SEVERABILITY
+11. TERMINATION
+
+(a) Any rights granted to you under Section 3 of this license automatically
+terminate if you materially violate the terms of this license, including
+without limitation failure to comply with the Source Publication Requirement
+in Section 4(b) when applicable.
+
+(b) Rights may be reinstated if:
+  - the violation is cured within thirty (30) days after receiving written
+    notice of the violation from Chris A. (krimbopple); or
+  - Chris A. (krimbopple) expressly reinstates the rights in writing.
+
+(c) Upon termination, you must cease all Distribution of the BlitzX3D
+Contributions and destroy or remove all copies in your possession or control,
+to the extent permitted by applicable law.
+
+
+12. SEVERABILITY
 
 If any provision of this license is found unenforceable, the remaining
 provisions shall remain in effect.
 
 
-14. ENTIRE AGREEMENT
+13. ENTIRE AGREEMENT
 
 This license represents the complete terms governing the BlitzX3D Contributions
 and supersedes prior statements concerning those Contributions.

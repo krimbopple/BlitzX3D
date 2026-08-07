@@ -369,6 +369,15 @@ void gxGraphics::closeMovie(gxMovie* m) {
 }
 
 gxCanvas* gxGraphics::createCanvas(int w, int h, int flags) {
+	if (flags & gxCanvas::CANVAS_TEX_CUBE) {
+		int size = w > h ? w : h;
+		IDirect3DCubeTexture9* cubeTex = ddUtil::createCubeTextureSurface(size, flags, this);
+		if (!cubeTex) return nullptr;
+		gxCanvas* c = new gxCanvas(this, cubeTex, flags);
+		canvas_set.insert(c);
+		c->cls();
+		return c;
+	}
 	if (flags & gxCanvas::CANVAS_TEXTURE) {
 		IDirect3DTexture9* tex = ddUtil::createTextureSurface(w, h, flags, this, true);
 		if (!tex) return nullptr;

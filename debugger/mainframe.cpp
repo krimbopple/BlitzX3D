@@ -3,6 +3,7 @@
 #include "resource.h"
 #include "debuggerapp.h"
 #include "prefs.h"
+#include "flamegraph.h"
 #include "../MultiLang/MultiLang.h"
 
 #include "../gxruntime/gxutf8.h"
@@ -23,6 +24,8 @@ BEGIN_MESSAGE_MAP(MainFrame, CFrameWnd)
 	ON_WM_SIZE()
 	ON_WM_CLOSE()
 	ON_WM_WINDOWPOSCHANGING()
+	ON_WM_TIMER()
+	ON_WM_DESTROY()
 
 	ON_COMMAND(ID_STOP, cmdStop)
 	ON_COMMAND(ID_RUN, cmdRun)
@@ -30,6 +33,8 @@ BEGIN_MESSAGE_MAP(MainFrame, CFrameWnd)
 	ON_COMMAND(ID_STEPINTO, cmdStepInto)
 	ON_COMMAND(ID_STEPOUT, cmdStepOut)
 	ON_COMMAND(ID_END, cmdEnd)
+	ON_COMMAND(ID_PROFILE_TOGGLE, cmdProfileToggle)
+	ON_COMMAND(ID_PROFILE_RESET, cmdProfileReset)
 
 	ON_UPDATE_COMMAND_UI(ID_STOP, updateCmdUI)
 	ON_UPDATE_COMMAND_UI(ID_RUN, updateCmdUI)
@@ -37,10 +42,15 @@ BEGIN_MESSAGE_MAP(MainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(ID_STEPINTO, updateCmdUI)
 	ON_UPDATE_COMMAND_UI(ID_STEPOUT, updateCmdUI)
 	ON_UPDATE_COMMAND_UI(ID_END, updateCmdUI)
+	ON_CBN_SELCHANGE(1002, OnFilterSelChange)
 
 END_MESSAGE_MAP()
 
-MainFrame::MainFrame() :state(STARTING), step_level(-1), cur_pos(0), cur_file(0) {
+#define PROFILER_TIMER_ID 1
+#define PROFILER_TIMER_MS 250
+
+MainFrame::MainFrame() :state(STARTING), step_level(-1), cur_pos(0), cur_file(0),
+	last_obj_cnt(0), last_unrel_cnt(0), last_str_cnt(0), last_working_set_bytes(0) {
 }
 
 MainFrame::~MainFrame() {
@@ -79,6 +89,15 @@ int MainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	toolBar.SetSizes(butsz, imgsz);
 	toolBar.SetButtons(toolbuts, toolcnt);
 
+	//Filter
+	m_filterCombo.Create(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, CRect(0, 0, 110, 300), this, 1002);
+	m_filterCombo.AddString("All");
+	m_filterCombo.AddString("Info");
+	m_filterCombo.AddString("Warnings");
+	m_filterCombo.AddString("Errors");
+	m_filterCombo.SetCurSel(0);
+	m_currentFilter = 0;
+
 	//Tabber
 	tabber.Create(
 		WS_VISIBLE | WS_CHILD |
@@ -99,6 +118,17 @@ int MainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 		ES_NOHIDESEL | ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL,
 		CRect(0, 0, 0, 0), &tabber, 1);
 	tabber.insert(0, &debug_log, "Debug log");
+
+	//Profiler
+	profiler_panel.Create(
+		0, 0, WS_CHILD,
+		CRect(0, 0, 0, 0), &tabber, 4, 0);
+	tabber.insert(1, &profiler_panel, MultiLang::debugger_profiler);
+	tabber.setCurrent(0);
+
+	//Flame Graph
+	flame_graph_panel.Create(NULL, NULL, WS_CHILD | WS_VISIBLE, CRect(0, 0, 0, 0), &tabber, 5);
+	tabber.insert(2, &flame_graph_panel, "Flame Graph");
 
 	//Debug trees
 	locals_tree.Create(
@@ -121,9 +151,16 @@ int MainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	tabber2.insert(2, &consts_tree, MultiLang::debugger_consts);
 	tabber2.setCurrent(0);
 
+	SetTimer(PROFILER_TIMER_ID, PROFILER_TIMER_MS, 0);
+
 	setState(STARTING);
 
 	return 0;
+}
+
+void MainFrame::OnDestroy() {
+	KillTimer(PROFILER_TIMER_ID);
+	CFrameWnd::OnDestroy();
 }
 
 void MainFrame::setState(int n) {
@@ -146,20 +183,40 @@ void MainFrame::OnClose() {
 void MainFrame::OnSize(UINT type, int sw, int sh) {
 	CFrameWnd::OnSize(type, sw, sh);
 
-	CRect r, t; GetClientRect(&r);
-	int x = r.left, y = r.top, w = r.Width(), h = r.Height();
+	CRect r, t;
+	GetClientRect(&r);
 
-	toolBar.GetWindowRect(&t); y += t.Height(); h -= t.Height();
+	int x = r.left;
+	int y = r.top;
+	int w = r.Width();
+	int h = r.Height();
+
+	toolBar.GetWindowRect(&t);
+	y += t.Height();
+	h -= t.Height();
 
 	tabber.MoveWindow(x, y, w - 360, h);
-
 	tabber2.MoveWindow(x + w - 360, y, 360, h);
+
+	CRect rc;
+	tabber.GetWindowRect(&rc);
+	ScreenToClient(&rc);
+
+	m_filterCombo.MoveWindow(rc.right - 120, rc.top + 30, 110, 250);
+
+	m_filterCombo.ShowWindow(SW_SHOW);
+	m_filterCombo.BringWindowToTop();
 }
 
 void MainFrame::setRuntime(void* mod, void* env) {
 	consts_tree.reset((Environ*)env);
 	globals_tree.reset((Module*)mod, (Environ*)env);
 	locals_tree.reset((Environ*)env);
+	profiler.reset();
+	profiler.clearSamples();
+	profiler_panel.clear();
+	flame_graph_panel.setProfiler(&profiler);
+	flame_graph_panel.refresh();
 }
 
 void MainFrame::showCurStmt() {
@@ -195,6 +252,9 @@ bool MainFrame::debugStmt(int pos, const char* file) {
 }
 
 void MainFrame::debugEnter(void* frame, void* env, const char* func) {
+	profiler.enter(func);
+	call_stack.push_back(func);
+
 	locals_tree.pushFrame(frame, env, func);
 
 	if(locals_tree.size() > 1) return;
@@ -206,12 +266,46 @@ void MainFrame::debugEnter(void* frame, void* env, const char* func) {
 }
 
 void MainFrame::debugLeave() {
+	profiler.leave();
+	if(!call_stack.empty()) call_stack.pop_back();
+
 	locals_tree.popFrame();
+}
+
+std::string MainFrame::buildCrashReport(const char* msg)const {
+	std::string s = msg ? msg : "";
+	s += "\r\n";
+
+	if(cur_file) {
+		int row = (cur_pos >> 16) & 0xffff, col = cur_pos & 0xffff;
+		s += "\r\nLocation: ";
+		s += cur_file;
+		s += " (line ";
+		s += std::to_string(row + 1);
+		s += ", col ";
+		s += std::to_string(col + 1);
+		s += ")\r\n";
+	}
+
+	if(!call_stack.empty()) {
+		s += "\r\nCall stack (innermost first):\r\n";
+		for(int i = (int)call_stack.size() - 1; i >= 0; --i) {
+			s += "  ";
+			s += call_stack[i];
+			s += "\r\n";
+		}
+	}
+
+	return s;
 }
 
 void MainFrame::debugMsg(const char* msg, bool serious) {
 	if(serious) {
-		::MessageBoxW(0, UTF8::convertToUtf16(msg).c_str(), MultiLang::runtime_error, MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+		std::string report = buildCrashReport(msg);
+		::MessageBoxW(0, UTF8::convertToUtf16(report).c_str(), MultiLang::runtime_error, MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+		showCurStmt();
+		profiler.resyncStack();
+		call_stack.clear();
 	}
 	else {
 		::MessageBoxW(0, UTF8::convertToUtf16(msg).c_str(), MultiLang::runtime_message, MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
@@ -219,13 +313,78 @@ void MainFrame::debugMsg(const char* msg, bool serious) {
 }
 
 void MainFrame::debugLog(const char* msg) {
-	debug_log.ReplaceSel(msg);
-	debug_log.ReplaceSel("\n");
-	tabber.setCurrent(0);
-	setState(state);
+	std::string full = msg;
+	ELogSeverity severity = LOG_INFO;
+	std::string displayText;
+
+	if (full.find("[WARNING] ") == 0) {
+		severity = LOG_WARNING;
+		displayText = full.substr(10);
+	}
+	else if (full.find("[ERROR] ") == 0) {
+		severity = LOG_ERROR;
+		displayText = full.substr(8);
+	}
+	else {
+		displayText = full;
+	}
+
+	AddLogEntry(severity, displayText);
+}
+
+void MainFrame::AddLogEntry(ELogSeverity severity, const std::string& text) {
+	m_logEntries.push_back({ severity, text });
+	RefreshLogDisplay();
+}
+
+void MainFrame::RefreshLogDisplay() {
+	debug_log.SetSel(0, -1);
+	debug_log.ReplaceSel("");
+
+	CHARFORMAT cf = {};
+	cf.cbSize = sizeof(cf);
+	cf.dwMask = CFM_COLOR;
+
+	for (const auto& entry : m_logEntries) {
+
+		if (m_currentFilter == 1 && entry.severity != LOG_INFO) continue;
+		if (m_currentFilter == 2 && entry.severity != LOG_WARNING) continue;
+		if (m_currentFilter == 3 && entry.severity != LOG_ERROR) continue;
+
+		switch (entry.severity) {
+		case LOG_WARNING: cf.crTextColor = RGB(255, 200, 0); break;
+		case LOG_ERROR:   cf.crTextColor = RGB(255, 0, 0); break;
+		default:          cf.crTextColor = prefs.rgb_default; break;
+		}
+
+		debug_log.SetSel(-1, -1);
+		debug_log.SetSelectionCharFormat(cf);
+		debug_log.ReplaceSel(entry.text.c_str());
+		debug_log.ReplaceSel("\r\n");
+	}
+
+	debug_log.SetSel(-1, -1);
+	debug_log.SendMessage(EM_SCROLLCARET);
+
+	m_filterCombo.BringWindowToTop();
+}
+
+void MainFrame::OnFilterSelChange() {
+	m_currentFilter = m_filterCombo.GetCurSel();
+	RefreshLogDisplay();
 }
 
 void MainFrame::debugSys(void* m) {
+	if(!m) return;
+
+	int tag = *(int*)m;
+	if(tag == DBGSYS_MEMSTATS) {
+		DbgSysMemStats* s = (DbgSysMemStats*)m;
+		last_obj_cnt = s->objCnt;
+		last_unrel_cnt = s->unrelObjCnt;
+		last_str_cnt = s->stringCnt;
+		last_working_set_bytes = s->workingSetBytes;
+	}
 }
 
 void MainFrame::cmdStop() {
@@ -271,7 +430,7 @@ SourceFile* MainFrame::sourceFile(const char* file) {
 
 	it = files.insert(std::make_pair(file, t)).first;
 
-	int tab = files.size();
+	int tab = files.size() + 1;
 
 	t->Create(
 		WS_CHILD | WS_HSCROLL | WS_VSCROLL |
@@ -330,3 +489,31 @@ void MainFrame::OnWindowPosChanging(WINDOWPOS* pos) {
 	pos->cx = rect.right - pos->x;
 	pos->cy = rect.bottom - pos->y;
 }
+
+void MainFrame::OnTimer(UINT_PTR id) {
+	if (id != PROFILER_TIMER_ID) return;
+	if (state == RUNNING || state == STOPPED) {
+		profiler.sampleStack();
+		profiler_panel.refresh(profiler, last_obj_cnt, last_unrel_cnt, last_str_cnt, last_working_set_bytes);
+		if (flame_graph_panel.IsWindowVisible()) {
+			flame_graph_panel.refresh();
+		}
+	}
+}
+
+void MainFrame::cmdProfileToggle() {
+	profiler.enabled = !profiler.enabled;
+	if (profiler.enabled) {
+		profiler.reset();
+		profiler.clearSamples();
+		flame_graph_panel.refresh();
+	}
+}
+
+void MainFrame::cmdProfileReset() {
+	profiler.reset();
+	profiler.clearSamples();
+	profiler_panel.clear();
+	flame_graph_panel.refresh();
+}
+

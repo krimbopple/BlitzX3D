@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include <filesystem>
+namespace fs = std::filesystem;
 
 int atoi(const std::string& s) {
 	return atoi(s.c_str());
@@ -87,21 +89,28 @@ std::string toupper(const std::string& s) {
 }
 
 std::string fullfilename(const std::string& t) {
-	char buff[MAX_PATH + 1], * p;
-	GetFullPathName(t.c_str(), MAX_PATH, buff, &p);
-	return std::string(buff);
+	try {
+		return fs::absolute(fs::path(t)).string();
+	}
+	catch (const fs::filesystem_error&) {
+		return t;
+	}
 }
 
 std::string filenamepath(const std::string& t) {
-	char buff[MAX_PATH + 1], * p;
-	GetFullPathName(t.c_str(), MAX_PATH, buff, &p);
-	if(!p) return "";
-	*p = 0; return std::string(buff);
+	try {
+		return fs::path(t).parent_path().string();
+	}
+	catch (const fs::filesystem_error&) {
+		return "";
+	}
 }
 
 std::string filenamefile(const std::string& t) {
-	char buff[MAX_PATH + 1], * p;
-	GetFullPathName(t.c_str(), MAX_PATH, buff, &p);
-	if(!p) return "";
-	return std::string(p);
+	try {
+		return fs::path(t).filename().string();
+	}
+	catch (const fs::filesystem_error&) {
+		return "";
+	}
 }

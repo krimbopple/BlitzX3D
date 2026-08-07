@@ -9,6 +9,7 @@
 #include "light.h"
 #include "mirror.h"
 #include "listener.h"
+#include "scene.h"
 
 class World {
 public:
@@ -40,14 +41,9 @@ public:
 	Object* traceRay(const Line& line, float radius, ObjCollision* curr_coll);
 
 private:
-	struct CollInfo {
-		int dst_type, method, response;
-	};
-
-	std::unordered_map<int, std::vector<CollInfo>> _collInfo;
 	std::vector<Model*> transparents;
 
-	void collide(Object* src);
+	void collide(Object* src, const std::vector<CollInfo>& collinfos, const std::unordered_map<int, std::vector<Object*>>& objsByType);
 	void render(Camera* c, Mirror* m);
 	void render(Model* m, const RenderContext& rc);
 	void flushTransparent();

@@ -45,11 +45,11 @@ struct CachedTexture::Rep {
 			}
 		}
 
-		int t_flags = flags & (
+		int t_flags = (flags & (
 			gxCanvas::CANVAS_TEX_RGB |
 			gxCanvas::CANVAS_TEX_ALPHA |
 			gxCanvas::CANVAS_TEX_MASK |
-			gxCanvas::CANVAS_TEX_HICOLOR) | gxCanvas::CANVAS_NONDISPLAY;
+			gxCanvas::CANVAS_TEX_HICOLOR)) | gxCanvas::CANVAS_NONDISPLAY | gxCanvas::CANVAS_TEXTURE;
 
 		gxCanvas* t = gx_graphics->loadCanvas(f, t_flags);
 		if (!t) return;

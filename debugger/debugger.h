@@ -1,6 +1,15 @@
 #ifndef DEBUGGER_H
 #define DEBUGGER_H
 
+enum { DBGSYS_MEMSTATS = 1 };
+struct DbgSysMemStats {
+	int tag;
+	int objCnt;
+	int unrelObjCnt;
+	int stringCnt;
+	__int64 workingSetBytes;
+};
+
 class Debugger {
 public:
 	virtual void debugRun() = 0;

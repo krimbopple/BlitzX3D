@@ -72,11 +72,14 @@ public:
 
 	static Entity* orphans() { return _orphans; }
 
+	void setScene(int id) { sceneId = id; }
+	int getScene() const { return sceneId; }
 private:
 	Entity* _succ, * _pred, * _parent, * _children, * _last_child;
 
 	static Entity* _orphans, * _last_orphan;
-
+	
+	int sceneId = 0;
 	bool _visible, _enabled;
 
 	std::string _name;

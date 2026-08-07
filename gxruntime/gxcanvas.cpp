@@ -170,7 +170,8 @@ gxCanvas::gxCanvas(gxGraphics* g, IDirect3DSurface9* s, int f) :
     graphics(g), plain_surf(s), tex(nullptr), cube_tex(nullptr), surf(s), z_surf(nullptr),
     flags(f), cube_mode(CUBEMODE_REFLECTION | CUBESPACE_WORLD),
     t_surf(nullptr), cm_mask(nullptr), locked_cnt(0), mod_cnt(0), remip_cnt(0),
-    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false) {
+    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false),
+    blit_batch_depth(0), blit_batch_active(false), blit_batch_saved(nullptr) {
     memset(cube_surfs, 0, sizeof(cube_surfs));
 
     D3DSURFACE_DESC desc;
@@ -195,7 +196,8 @@ gxCanvas::gxCanvas(gxGraphics* g, IDirect3DTexture9* t, int f) :
     graphics(g), plain_surf(nullptr), tex(t), cube_tex(nullptr), surf(nullptr), z_surf(nullptr),
     flags(f), cube_mode(CUBEMODE_REFLECTION | CUBESPACE_WORLD),
     t_surf(nullptr), cm_mask(nullptr), locked_cnt(0), mod_cnt(0), remip_cnt(0),
-    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false) {
+    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false),
+    blit_batch_depth(0), blit_batch_active(false), blit_batch_saved(nullptr) {
     memset(cube_surfs, 0, sizeof(cube_surfs));
 
     tex->GetSurfaceLevel(0, &surf);
@@ -224,7 +226,8 @@ gxCanvas::gxCanvas(gxGraphics* g, IDirect3DCubeTexture9* ct, int f) :
     graphics(g), plain_surf(nullptr), tex(nullptr), cube_tex(ct), surf(nullptr), z_surf(nullptr),
     flags(f), cube_mode(CUBEMODE_REFLECTION | CUBESPACE_WORLD),
     t_surf(nullptr), cm_mask(nullptr), locked_cnt(0), mod_cnt(0), remip_cnt(0),
-    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false) {
+    blit_tex(nullptr), blit_tex_mod_cnt(-1), blit_tex_mask(~0u), lock_is_rt(false), effect2D(nullptr), has_mask(false),
+    blit_batch_depth(0), blit_batch_active(false), blit_batch_saved(nullptr) {
 
     D3DCUBEMAP_FACES faceMap[6] = {
         D3DCUBEMAP_FACE_NEGATIVE_X,
@@ -812,6 +815,43 @@ static bool isRenderTarget(IDirect3DSurface9* s) {
     return SUCCEEDED(s->GetDesc(&desc)) && (desc.Usage & D3DUSAGE_RENDERTARGET);
 }
 
+void gxCanvas::beginBlitBatch() const {
+    if (blit_batch_depth++ > 0) return;
+
+    IDirect3DDevice9* dev = graphics ? graphics->dir3dDev : nullptr;
+    if (!dev || !isRenderTarget(surf)) {
+        blit_batch_active = false;
+        return;
+    }
+
+    SavedBlitState* saved = new SavedBlitState();
+    saveBlitState(dev, *saved);
+    blit_batch_saved = saved;
+
+    dev->SetRenderTarget(0, surf);
+    dev->SetDepthStencilSurface(nullptr);
+    D3DVIEWPORT9 vp = { 0, 0, (DWORD)clip_rect.right, (DWORD)clip_rect.bottom, 0.0f, 1.0f };
+    dev->SetViewport(&vp);
+
+    dev->BeginScene();
+    blit_batch_active = true;
+}
+
+void gxCanvas::endBlitBatch() const {
+    if (blit_batch_depth == 0) return;
+    if (--blit_batch_depth > 0) return;
+
+    if (blit_batch_active) {
+        IDirect3DDevice9* dev = graphics->dir3dDev;
+        dev->EndScene();
+        SavedBlitState* saved = (SavedBlitState*)blit_batch_saved;
+        restoreBlitState(dev, *saved);
+        delete saved;
+        blit_batch_saved = nullptr;
+        blit_batch_active = false;
+    }
+}
+
 static void cpuBlit(gxCanvas* dest, const RECT& dest_r, gxCanvas* src, const RECT& src_r, bool solid) {
     D3DSURFACE_DESC destDesc;
     bool destIsSysMem = SUCCEEDED(dest->surf->GetDesc(&destDesc)) && destDesc.Pool == D3DPOOL_SYSTEMMEM;
@@ -1130,71 +1170,55 @@ void gxCanvas::blitAlpha(int x, int y, gxCanvas* src,
 
     IDirect3DDevice9* dev = graphics->dir3dDev;
     if (!dev) return;
-    FillModeGuard guard(dev);
 
     IDirect3DBaseTexture9* tex = src->getTexture();
     if (!tex) return;
 
-    if (effect2D) {
-        SavedBlitState saved;
-        saveBlitState(dev, saved);
+    bool ownBatch = !blit_batch_active;
+    if (ownBatch) beginBlitBatch();
 
-        dev->SetRenderTarget(0, surf);
-        dev->SetDepthStencilSurface(nullptr);
-        D3DVIEWPORT9 vp = { 0, 0, (DWORD)clip_rect.right, (DWORD)clip_rect.bottom, 0.0f, 1.0f };
-        dev->SetViewport(&vp);
-
-        dev->BeginScene();
-        drawQuadWithEffect(dev, effect2D, (IDirect3DTexture9*)tex, dest_r, src_r, src->clip_rect.right, src->clip_rect.bottom, true, color_argb);
-        dev->EndScene();
-
-        restoreBlitState(dev, saved);
-        damage(dest_r);
+    if (!blit_batch_active) {
+        endBlitBatch();
         return;
     }
 
-    SavedBlitState saved;
-    saveBlitState(dev, saved);
+    FillModeGuard guard(dev);
 
-    dev->SetRenderTarget(0, surf);
-    dev->SetDepthStencilSurface(nullptr);
-
-    D3DVIEWPORT9 vp = { 0, 0, (DWORD)clip_rect.right, (DWORD)clip_rect.bottom, 0.0f, 1.0f };
-    dev->SetViewport(&vp);
-
-    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
-    dev->SetRenderState(D3DRS_ZENABLE, FALSE);
-    dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-    dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
-
-    dev->SetRenderState(D3DRS_TEXTUREFACTOR, color_argb);
-
-    dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-    dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-    dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_TFACTOR);
-
-    dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-    dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-
-    if (filter) {
-        dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-        dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    if (effect2D) {
+        drawQuadWithEffect(dev, effect2D, (IDirect3DTexture9*)tex, dest_r, src_r, src->clip_rect.right, src->clip_rect.bottom, true, color_argb);
     }
     else {
-        dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
-        dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+        dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+        dev->SetRenderState(D3DRS_ZENABLE, FALSE);
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+        dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+        dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+
+        dev->SetRenderState(D3DRS_TEXTUREFACTOR, color_argb);
+
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_TFACTOR);
+
+        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+
+        if (filter) {
+            dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+            dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+        }
+        else {
+            dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+            dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+        }
+
+        drawBlitQuad(dev, (IDirect3DTexture9*)tex, dest_r, src_r, src->clip_rect.right, src->clip_rect.bottom);
     }
 
-    dev->SetTexture(0, tex);
-
-    dev->BeginScene();
-    drawBlitQuad(dev, (IDirect3DTexture9*)tex, dest_r, src_r, src->clip_rect.right, src->clip_rect.bottom);
-    dev->EndScene();
-
-    restoreBlitState(dev, saved);
     damage(dest_r);
+
+    if (ownBatch) endBlitBatch();
 }
 
 void gxCanvas::text(int x, int y, const std::string& t) {
@@ -1213,7 +1237,11 @@ void gxCanvas::text(int x, int y, const std::string& t) {
         tx += font->charAdvance(UTF8::decodeCharacter(t.c_str(), e));
         e += UTF8::measureCodepoint(t[e]);
     }
-    if (e > b) font->render(this, format.toARGB(color_surf), x, y, t.substr(b, e - b));
+    if (e > b) {
+        beginBlitBatch();
+        font->render(this, format.toARGB(color_surf), x, y, t.substr(b, e - b));
+        endBlitBatch();
+    }
 }
 
 int gxCanvas::getWidth()  const { return logical_w; }
@@ -1377,11 +1405,19 @@ unsigned gxCanvas::getPixel(int x, int y) const {
 }
 
 void gxCanvas::copyPixelFast(int x, int y, gxCanvas* src, int src_x, int src_y) {
-    switch (format.getDepth()) {
-    case 16: *(short*)(locked_surf + y * locked_pitch + x * 2) = *(short*)(src->locked_surf + src_y * src->locked_pitch + src_x * 2); break;
-    case 24: { unsigned char* p = locked_surf + y * locked_pitch + x * 3; unsigned char* t = src->locked_surf + src_y * src->locked_pitch + src_x * 3; *(short*)p = *(short*)t; *(char*)(p + 2) = *(char*)(t + 2); } break;
-    case 32: *(int*)(locked_surf + y * locked_pitch + x * 4) = *(int*)(src->locked_surf + src_y * src->locked_pitch + src_x * 4); break;
+    if (format.getDepth() == src->format.getDepth()) {
+        switch (format.getDepth()) {
+        case 16: *(short*)(locked_surf + y * locked_pitch + x * 2) = *(short*)(src->locked_surf + src_y * src->locked_pitch + src_x * 2); return;
+        case 24: { unsigned char* p = locked_surf + y * locked_pitch + x * 3; unsigned char* t = src->locked_surf + src_y * src->locked_pitch + src_x * 3; *(short*)p = *(short*)t; *(char*)(p + 2) = *(char*)(t + 2); } return;
+        case 32: *(int*)(locked_surf + y * locked_pitch + x * 4) = *(int*)(src->locked_surf + src_y * src->locked_pitch + src_x * 4); return;
+        }
     }
+    int sp = src->format.getPitch();
+    int dp = format.getPitch();
+    unsigned char* sPix = src->locked_surf + src_y * src->locked_pitch + src_x * sp;
+    unsigned char* dPix = locked_surf + y * locked_pitch + x * dp;
+    unsigned argb = src->format.toARGB(src->format.getPixel(sPix));
+    format.setPixel(dPix, format.fromARGB(argb));
 }
 
 void gxCanvas::copyPixel(int x, int y, gxCanvas* src, int src_x, int src_y) {

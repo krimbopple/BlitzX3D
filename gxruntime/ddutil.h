@@ -18,6 +18,8 @@ struct ddUtil {
     static IDirect3DTexture9* createTextureSurface(int w, int h, int flags, gxGraphics* gfx);
     static IDirect3DTexture9* createTextureSurface(int w, int h, int flags, gxGraphics* gfx, bool renderTarget);
 
+    static IDirect3DCubeTexture9* createCubeTextureSurface(int size, int flags, gxGraphics* gfx);
+
     static IDirect3DTexture9* loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx);
     static IDirect3DTexture9* loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx, bool renderTarget);
     static IDirect3DTexture9* loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH);

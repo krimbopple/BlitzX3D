@@ -1,5 +1,6 @@
 #include "std.h"
 #include "entity.h"
+#include "scene.h"
 
 Entity* Entity::_orphans, * Entity::_last_orphan;
 
@@ -9,6 +10,12 @@ enum {
 };
 
 void Entity::remove() {
+	if (sceneId != 0) {
+		if (Scene* s = g_sceneManager.get(sceneId)) {
+			s->remove(this);
+		}
+		sceneId = 0;
+	}
 	if (_parent) {
 		if (_parent->_children == this) _parent->_children = _succ;
 		if (_parent->_last_child == this) _parent->_last_child = _pred;
@@ -32,6 +39,20 @@ void Entity::insert() {
 		if (_pred = _last_orphan) _pred->_succ = this;
 		else _orphans = this;
 		_last_orphan = this;
+	}
+
+	if (_parent) {
+		sceneId = _parent->sceneId;
+	}
+	else {
+		sceneId = g_sceneManager.currentSceneId;
+	}
+	if (Scene* s = g_sceneManager.get(sceneId)) {
+		s->add(this);
+	}
+	else {
+		sceneId = 0;
+		g_sceneManager.get(0)->add(this);
 	}
 }
 
@@ -116,6 +137,9 @@ void Entity::setEnabled(bool enabled) {
 }
 
 void Entity::enumVisible(std::vector<Object*>& out) {
+	if (sceneId != 0 && sceneId != g_sceneManager.currentSceneId) {
+		return;
+	}
 	if (!_visible) return;
 	if (Object* o = getObject()) out.push_back(o);
 	for (Entity* e = _children; e; e = e->_succ) {
@@ -124,6 +148,9 @@ void Entity::enumVisible(std::vector<Object*>& out) {
 }
 
 void Entity::enumEnabled(std::vector<Object*>& out) {
+	if (sceneId != 0 && sceneId != g_sceneManager.currentSceneId) {
+		return;
+	}
 	if (!_enabled) return;
 	if (Object* o = getObject()) out.push_back(o);
 	for (Entity* e = _children; e; e = e->_succ) {

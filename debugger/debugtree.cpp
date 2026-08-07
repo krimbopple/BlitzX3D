@@ -56,6 +56,8 @@ VOID DebugTree::sortItemAndChildren(HTREEITEM item) {
 	}
 }
 
+// any further will stall the debugger
+static const int MAX_EXPANDED_ELEMENTS = 500;
 HTREEITEM DebugTree::insertVar(void* var, Decl* d, const std::string& name, HTREEITEM it, HTREEITEM parent) {
 
 	std::string s = name;
@@ -64,7 +66,8 @@ HTREEITEM DebugTree::insertVar(void* var, Decl* d, const std::string& name, HTRE
 	StructType* st = d->type->structType();
 	VectorType* vt = d->type->vectorType();
 
-	if(ct) {
+	void* vecData = 0;
+	if (ct) {
 		Type* t = ct->valueType;
 		s += typeTag(t);
 		if(t->intType()) {
@@ -93,8 +96,12 @@ HTREEITEM DebugTree::insertVar(void* var, Decl* d, const std::string& name, HTRE
 		}
 		else if(st) {
 			var = *(void**)var;
-			if(var) var = *(void**)var;
-			if(!var) s += " (Null)";
+			if (var) var = *(void**)var;
+			if (!var) s += " (Null)";
+		}
+		else if (vt) {
+			vecData = *(void**)var;
+			if (!vecData) s += " (Null)";
 		}
 	}
 
@@ -124,7 +131,61 @@ HTREEITEM DebugTree::insertVar(void* var, Decl* d, const std::string& name, HTRE
 			}
 		}
 		else {
-			while(HTREEITEM t = GetChildItem(it)) {
+			while (HTREEITEM t = GetChildItem(it)) {
+				DeleteItem(t);
+			}
+		}
+	}
+	else if (vt) {
+		if (vecData && st_nest < 4) {
+			int total = 1;
+			for (int k = 0; k < (int)vt->sizes.size(); ++k) total *= vt->sizes[k];
+
+			int shown = total < MAX_EXPANDED_ELEMENTS ? total : MAX_EXPANDED_ELEMENTS;
+
+			std::vector<int> strides(vt->sizes.size());
+			int stride = 1;
+			for (int dim = 0; dim < (int)vt->sizes.size(); ++dim) {
+				strides[dim] = stride;
+				stride *= vt->sizes[dim];
+			}
+
+			Decl elemDecl("", vt->elementType, DECL_LOCAL);
+
+			HTREEITEM vt_it = GetChildItem(it);
+			for (int idx = 0; idx < shown; ++idx) {
+				void* elem_var = (char*)vecData + idx * 4;
+
+				std::string idxName = "(";
+				for (int dim = (int)vt->sizes.size() - 1; dim >= 0; --dim) {
+					int coord = (idx / strides[dim]) % vt->sizes[dim];
+					if (dim != (int)vt->sizes.size() - 1) idxName += ",";
+					idxName += itoa(coord);
+				}
+				idxName += ")";
+
+				vt_it = insertVar(elem_var, &elemDecl, idxName, vt_it, it);
+			}
+
+			if (total > shown) {
+				std::string more = "... (" + itoa(total - shown) + " more)";
+				if (vt_it) {
+					if (GetItemText(vt_it) != more.c_str()) SetItemText(vt_it, more.c_str());
+					vt_it = GetNextSiblingItem(vt_it);
+				}
+				else {
+					InsertItem(more.c_str(), it);
+				}
+			}
+
+			while (vt_it) {
+				HTREEITEM next = GetNextSiblingItem(vt_it);
+				DeleteItem(vt_it);
+				vt_it = next;
+			}
+		}
+		else {
+			while (HTREEITEM t = GetChildItem(it)) {
 				DeleteItem(t);
 			}
 		}

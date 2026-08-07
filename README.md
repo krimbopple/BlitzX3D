@@ -12,6 +12,7 @@ licensed under the zlib/libpng License.
 Original BlitzX3D contributions by Chris A. (krimbopple) are licensed under the
 BlitzX3D Community License.
 
+---
 
 ## How to Build
 
@@ -31,8 +32,19 @@ BlitzX3D Community License.
 ### Steps
 
 1. Open `blitz3d.sln` in Visual Studio 2022.
-2. Select the **Release x86** configuration and rebuild the entire solution.
+2. Select the **Release**/**Debug** configuration and rebuild the entire solution.
 3. All done! You can find the output files in the `_release` and `_release/bin` directories. Feel free to delete any `.pdb` and `.ilk` files.
+
+## Properly Debugging
+
+Because the launcher (`bblaunch`) spawns the IDE (`ide.exe`) and then exits, Visual Studio will lose the debug session by default. To debug properly:
+
+1. Install the **Microsoft Child Process Debugging Power Tool 2022+** from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=vsdbgplat.MicrosoftChildProcessDebuggingPowerTool2022).
+2. In Visual Studio, go to **Debug -> Other Debug Targets -> Child Process Debugging Settings** and enable **"Enable child process debugging"**.
+
+The debugger will now automatically attach to `ide.exe` when it launches, and you will now be able to properly debug your programs!
+
+---
 
 ## In Memory of Mark Sibly
 

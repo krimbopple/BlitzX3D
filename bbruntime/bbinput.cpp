@@ -44,7 +44,7 @@ int bbKeyHit(int n) {
 
 int bbGetKey() {
 	if (!gx_input || !gx_keyboard) return 0;
-	return gx_input->toAscii(gx_keyboard->getKey());
+	return gx_input->toUnicode(gx_keyboard->getKey());
 }
 
 BBStr* bbTextInput(BBStr* s) {
@@ -73,7 +73,7 @@ int bbWaitKey() {
 		if (!gx_runtime->idle()) RTEX(0);
 		if (gx_keyboard) {
 			if (int key = gx_keyboard->getKey()) {
-				if (key = gx_input->toAscii(key)) return key;
+				if (key = gx_input->toUnicode(key)) return key;
 			}
 		}
 		gx_runtime->delay(20);

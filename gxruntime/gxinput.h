@@ -64,7 +64,7 @@ public:
 	bool getControllerConnected(int port);
 	int getJoystickType(int port)const;
 	int numJoysticks()const;
-	int toAscii(int key)const;
+	int toUnicode(int key)const;
 };
 
 #endif

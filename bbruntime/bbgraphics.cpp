@@ -2030,7 +2030,7 @@ BBStr* bbInput(BBStr* prompt)
             }
             if (key = gx_keyboard->getKey())
             {
-                if (int asc = gx_input->toAscii(key))
+                if (int asc = gx_input->toUnicode(key))
                 {
                     rep_delay = 280;
                     last_key = key;
@@ -2043,7 +2043,7 @@ BBStr* bbInput(BBStr* prompt)
             {
                 if (t - last_time > rep_delay)
                 {
-                    if (key = gx_input->toAscii(last_key))
+                    if (key = gx_input->toUnicode(last_key))
                     {
                         last_time += rep_delay;
                         rep_delay = 40;

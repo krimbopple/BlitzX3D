@@ -110,9 +110,14 @@ BBStr* bbRSet(BBStr* s, int n) {
 	return s;
 }
 
-BBStr* bbChr(int n) {
-	BBStr* t = new BBStr();
-	*t += (char)n; return t;
+BBStr* bbChr(int chr) {
+	char buffer[8];
+	int len = UTF8::encodeCharacter(chr, buffer);
+	
+	BBStr* result = new BBStr();
+	
+	for (int i = 0; i < len; ++i) *result += buffer[i];
+	return result;
 }
 
 BBStr* bbHex(int n) {
@@ -128,8 +133,12 @@ BBStr* bbBin(int n) {
 }
 
 int bbAsc(BBStr* s) {
-	int n = s->size() ? (*s)[0] & 255 : -1;
-	delete s; return n;
+	if (!s->size()) { delete s; return 0; }
+
+	int n = UTF8::decodeCharacter(s->c_str(), 0);
+
+	delete s;
+	return n;
 }
 
 int bbLen(BBStr* s) {
@@ -186,7 +195,7 @@ void string_link(void(*rtSym)(const char*, void*)) {
 	rtSym("$Trim$string", bbTrim);
 	rtSym("$LSet$string%size", bbLSet);
 	rtSym("$RSet$string%size", bbRSet);
-	rtSym("$Chr%ascii", bbChr);
+	rtSym("$Chr%unicode", bbChr);
 	rtSym("%Asc$string", bbAsc);
 	rtSym("%Len$string", bbLen);
 	rtSym("$Hex%value", bbHex);

@@ -460,7 +460,7 @@ bool gxInput::rumble(int port, float left, float right) {
     return SDL_RumbleJoystick(d->joystick, lo, hi, 0xFFFFFFFF);
 }
 
-int gxInput::toAscii(int scan)const {
+int gxInput::toUnicode(int scan)const {
     switch (scan) {
     case DIK_INSERT:return ASC_INSERT;
     case DIK_DELETE:return ASC_DELETE;
@@ -488,7 +488,8 @@ int gxInput::toAscii(int scan)const {
     mat[VK_RMENU] = keyboard->keyDown(DIK_RMENU) ? 0x80 : 0;
     mat[VK_MENU] = mat[VK_LMENU] | mat[VK_RMENU];
 
-    WORD ch;
-    if (ToAscii(virt, scan, mat, &ch, 0) != 1) return 0;
-    return ch & 255;
+    WCHAR ch[4];
+    if (!ToUnicode(virt, scan, mat, ch, 4, 0)) return 0;
+    return (int)ch[0];
 }
+

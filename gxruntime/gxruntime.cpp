@@ -640,14 +640,6 @@ void gxRuntime::asyncEnd() {
 // IDLE //
 //////////
 bool gxRuntime::idle() {
-	// emergency exit, ctrl alt q
-	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
-		(GetAsyncKeyState(VK_MENU) & 0x8000) &&
-		(GetAsyncKeyState('Q') & 0x8000)) {
-		run_flag = false;
-		return false;
-	}
-
 	for(;;) {
 		MSG msg;
 		BOOL success = 0;

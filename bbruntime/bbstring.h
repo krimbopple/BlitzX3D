@@ -15,6 +15,7 @@ BBStr* bbTrim(BBStr* s);
 BBStr* bbLSet(BBStr* s, int n);
 BBStr* bbRSet(BBStr* s, int n);
 BBStr* bbChr(int n);
+BBStr* bbChrRaw(int n);
 int	   bbAsc(BBStr* s);
 int	   bbLen(BBStr* s);
 BBStr* bbHex(int n);

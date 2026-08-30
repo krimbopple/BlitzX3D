@@ -698,6 +698,7 @@ ImU32 TextEditor::GetGlyphColor(const Glyph & aGlyph) const
 void TextEditor::CloseAutocomplete()
 {
 	mAutocompleteActive = false;
+	mAutocompleteModified = false;
 	mAutocompleteMatches.clear();
 	mAutocompleteIndex = 0;
 	mAutocompleteScroll = 0;
@@ -750,6 +751,12 @@ void TextEditor::UpdateAutocomplete()
 		mAutocompleteDismissed = false;
 
 	if (mAutocompleteDismissed)
+	{
+		CloseAutocomplete();
+		return;
+	}
+
+	if (!mAutocompleteActive && !forceOpen && !mAutocompleteModified)
 	{
 		CloseAutocomplete();
 		return;
@@ -1073,6 +1080,7 @@ void TextEditor::HandleKeyboardInputs()
 			Redo();
 		else if (!IsReadOnly() && ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Backspace))
 		{
+			mAutocompleteModified = true;
 			UndoRecord u;
 			u.mBefore = mState;
 			if (HasSelection())
@@ -1097,29 +1105,65 @@ void TextEditor::HandleKeyboardInputs()
 				AddUndo(u);
 		}
 		else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+		{
+			mAutocompleteModified = false;
 			MoveUp(1, shift);
+		}
 		else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+		{
+			mAutocompleteModified = false;
 			MoveDown(1, shift);
+		}
 		else if (!alt && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+		{
+			mAutocompleteModified = false;
 			MoveLeft(1, shift, ctrl);
+		}
 		else if (!alt && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+		{
+			mAutocompleteModified = false;
 			MoveRight(1, shift, ctrl);
+		}
 		else if (!alt && ImGui::IsKeyPressed(ImGuiKey_PageUp))
+		{
+			mAutocompleteModified = false;
 			MoveUp(GetPageSize() - 4, shift);
+		}
 		else if (!alt && ImGui::IsKeyPressed(ImGuiKey_PageDown))
+		{
+			mAutocompleteModified = false;
 			MoveDown(GetPageSize() - 4, shift);
+		}
 		else if (!alt && ctrl && ImGui::IsKeyPressed(ImGuiKey_Home))
+		{
+			mAutocompleteModified = false;
 			MoveTop(shift);
+		}
 		else if (ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_End))
+		{
+			mAutocompleteModified = false;
 			MoveBottom(shift);
+		}
 		else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_Home))
+		{
+			mAutocompleteModified = false;
 			MoveHome(shift);
+		}
 		else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_End))
+		{
+			mAutocompleteModified = false;
 			MoveEnd(shift);
+		}
 		else if (!IsReadOnly() && !ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Delete))
+		{
+			mAutocompleteModified = true;
 			Delete();
+		}
 		else if (!IsReadOnly() && !ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Backspace))
+		{
+			mAutocompleteModified = true;
 			Backspace();
+		}
 		else if (!ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Insert))
 			mOverwrite ^= true;
 		else if (ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Insert))
@@ -1127,16 +1171,26 @@ void TextEditor::HandleKeyboardInputs()
 		else if (ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_C))
 			Copy();
 		else if (!IsReadOnly() && !ctrl && shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Insert))
+		{
+			mAutocompleteModified = true;
 			Paste();
+		}
 		else if (!IsReadOnly() && ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_V))
 		{
+			mAutocompleteModified = true;
 			Paste();
 			io.InputQueueCharacters.resize(0);
 		}
 		else if (ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_X))
+		{
+			mAutocompleteModified = true;
 			Cut();
+		}
 		else if (!ctrl && shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Delete))
+		{
+			mAutocompleteModified = true;
 			Cut();
+		}
 		else if (ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_A))
 			SelectAll();
 		else if (!IsReadOnly() && !ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Enter))
@@ -1147,6 +1201,7 @@ void TextEditor::HandleKeyboardInputs()
 		if (!IsReadOnly() && !io.InputQueueCharacters.empty())
 		{
 			mAutocompleteDismissed = false;
+			mAutocompleteModified = true;
 			for (int i = 0; i < io.InputQueueCharacters.Size; i++)
 			{
 				auto c = io.InputQueueCharacters[i];
@@ -2073,39 +2128,40 @@ void TextEditor::MoveLeft(int aAmount, bool aSelect, bool aWordMode)
 		if (aWordMode)
 		{
 			auto curPos = mState.mCursorPosition;
-			auto curCindex = GetCharacterIndex(curPos);
-			auto& curLine = mLines[curPos.mLine];
+			int li = curPos.mLine;
+			auto& curLine = mLines[li];
+			int ci = GetCharacterIndex(curPos);
+			int lineMax = (int)curLine.size();
 
-			if (curPos.mColumn == 0)
+			if (ci <= 0)
 			{
-				if (curPos.mLine > 0)
+				if (li > 0)
 				{
-					auto prevLine = curPos.mLine - 1;
-					auto prevLineMaxCol = GetLineMaxColumn(prevLine);
-					mState.mCursorPosition = Coordinates(prevLine, prevLineMaxCol);
-					line = prevLine;
-					cindex = (int)mLines[prevLine].size();
+					int prevLine = li - 1;
+					mState.mCursorPosition = Coordinates(prevLine, GetLineMaxColumn(prevLine));
 				}
 				else
-				{
 					break;
-				}
 			}
 			else
 			{
-				auto np = FindWordStart(curPos);
-				if (np == curPos)
+				if (IsIdentChar(curLine[ci - 1].mChar))
 				{
-					mState.mCursorPosition = Coordinates(curPos.mLine, 0);
-					line = curPos.mLine;
-					cindex = 0;
+					while (ci > 0 && IsIdentChar(curLine[ci - 1].mChar))
+						--ci;
 				}
 				else
 				{
-					mState.mCursorPosition = np;
-					line = np.mLine;
-					cindex = GetCharacterIndex(np);
+					while (ci > 0 && !IsIdentChar(curLine[ci - 1].mChar))
+						--ci;
+					if (ci > 0 && IsIdentChar(curLine[ci - 1].mChar))
+					{
+						while (ci > 0 && IsIdentChar(curLine[ci - 1].mChar))
+							--ci;
+					}
 				}
+
+				mState.mCursorPosition = Coordinates(li, GetCharacterColumn(li, ci));
 			}
 		}
 		else
@@ -2138,7 +2194,8 @@ void TextEditor::MoveLeft(int aAmount, bool aSelect, bool aWordMode)
 		}
 	}
 
-	mState.mCursorPosition = Coordinates(line, GetCharacterColumn(line, cindex));
+	if (!aWordMode)
+		mState.mCursorPosition = Coordinates(line, GetCharacterColumn(line, cindex));
 
 	assert(mState.mCursorPosition.mColumn >= 0);
 	if (aSelect)
@@ -2172,21 +2229,26 @@ void TextEditor::MoveRight(int aAmount, bool aSelect, bool aWordMode)
 		for (int i = 0; i < aAmount; ++i)
 		{
 			auto curPos = mState.mCursorPosition;
-			auto cindex = GetCharacterIndex(curPos);
-			auto& line = mLines[curPos.mLine];
-			auto lineMaxCol = GetLineMaxColumn(curPos.mLine);
+			int li = curPos.mLine;
+			auto& curLine = mLines[li];
+			int ci = GetCharacterIndex(curPos);
+			int lineMax = (int)curLine.size();
 
-			if (curPos.mColumn < lineMaxCol)
+			if (ci >= lineMax)
 			{
-				mState.mCursorPosition = Coordinates(curPos.mLine, lineMaxCol);
-			}
-			else if (curPos.mLine < (int)mLines.size() - 1)
-			{
-				mState.mCursorPosition = Coordinates(curPos.mLine + 1, 0);
+				if (li < (int)mLines.size() - 1)
+					mState.mCursorPosition = Coordinates(li + 1, 0);
+				else
+					break;
 			}
 			else
 			{
-				break;
+				while (ci < lineMax && IsIdentChar(curLine[ci].mChar))
+					++ci;
+				while (ci < lineMax && !IsIdentChar(curLine[ci].mChar))
+					++ci;
+
+				mState.mCursorPosition = Coordinates(li, GetCharacterColumn(li, ci));
 			}
 		}
 	}

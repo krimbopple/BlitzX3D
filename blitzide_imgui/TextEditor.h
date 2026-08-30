@@ -433,6 +433,7 @@ private:
 	bool mAutocompleteActive = false;
 	bool mAutocompleteRequested = false;
 	bool mAutocompleteDismissed = false;
+	bool mAutocompleteModified = false;
 	int mAutocompleteIndex = 0;
 	int mAutocompleteScroll = 0;
 	Coordinates mAutocompleteWordStart;

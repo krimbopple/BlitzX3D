@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tchar.h>
+#include <strsafe.h>
+#include <memory>
+#include <algorithm>
+#include <cstdint>
+#include <limits.h>
 #include "unzip.h"
 
 // THIS FILE is almost entirely based upon code by Jean-loup Gailly
@@ -915,7 +920,10 @@ int inflate_flush(inflate_blocks_statef *s,z_streamp z,int r)
 
   // copy as far as end of window 
   if (n!=0)          // check for n!=0 to avoid waking up CodeGuard
-  { memcpy(p, q, n);
+  {
+    if (p != Z_NULL && q != Z_NULL) {
+      memcpy(p, q, n);
+    }
     p += n;
     q += n;
   }
@@ -942,7 +950,12 @@ int inflate_flush(inflate_blocks_statef *s,z_streamp z,int r)
       z->adler = s->check = (*s->checkfn)(s->check, q, n);
 
     // copy
-    if (n!=0) {memcpy(p,q,n); p+=n; q+=n;}
+    if (n!=0) {
+      if (p != Z_NULL && q != Z_NULL) {
+        memcpy(p,q,n);
+      }
+      p+=n; q+=n;
+    }
   }
 
   // update pointers
@@ -1376,7 +1389,10 @@ int inflate_blocks(inflate_blocks_statef *s, z_streamp z, int r)
       t = s->sub.left;
       if (t > n) t = n;
       if (t > m) t = m;
-      memcpy(q, p, t);
+      if (t > 0 && p != Z_NULL && q != Z_NULL) {
+        if (t > n || t > m) t = (n < m ? n : m);
+        memcpy(q, p, t);
+      }
       p += t;  n -= t;
       q += t;  m -= t;
       if ((s->sub.left -= t) != 0)
@@ -1762,10 +1778,13 @@ uInt *v)               // working area: values in order of bit length
         if ((f = 1 << (j = k - w)) > a + 1)     // try a k-w bit table 
         {                       // too few codes for k-w bit table 
           f -= a + 1;           // deduct codes from patterns left 
+          if (k > BMAX) return Z_DATA_ERROR;
           xp = c + k;
+          if (xp < c || xp >= c + BMAX + 1) return Z_DATA_ERROR;
           if (j < z)
             while (++j < z)     // try smaller tables up to z bits 
             {
+              if (xp+1 >= c + BMAX + 1) return Z_DATA_ERROR;
               if ((f <<= 1) <= *++xp)
                 break;          // enough codes to use up j bits 
               f -= *xp;         // else deduct codes from patterns
@@ -2299,6 +2318,7 @@ const char * zError(int err)
 voidpf zcalloc (voidpf opaque, unsigned items, unsigned size)
 {
     if (opaque) items += size - size; // make compiler happy
+    if (items != 0 && size != 0 && size > SIZE_MAX / items) return Z_NULL;
     return (voidpf)calloc(items, size);
 }
 
@@ -2383,7 +2403,7 @@ int inflateEnd(z_streamp z)
 
 
 int inflateInit2(z_streamp z)
-{ const char *version = ZLIB_VERSION; int stream_size = sizeof(z_stream);
+{ const char *version = ZLIB_VERSION; size_t stream_size = sizeof(z_stream);
   if (version == Z_NULL || version[0] != ZLIB_VERSION[0] || stream_size != sizeof(z_stream)) return Z_VERSION_ERROR;
 
   int w = -15; // MAX_WBITS: 32K LZ77 window.
@@ -2656,6 +2676,7 @@ int lufclose(LUFILE *stream)
 { if (stream==NULL) return EOF;
   if (stream->mustclosehandle) CloseHandle(stream->h);
   delete stream;
+  stream = nullptr;
   return 0;
 }
 
@@ -2689,15 +2710,28 @@ int lufseek(LUFILE *stream, long offset, int whence)
 
 
 size_t lufread(void *ptr,size_t size,size_t n,LUFILE *stream)
-{ unsigned int toread = (unsigned int)(size*n);
+{ if (ptr==NULL || stream==NULL) return 0;
+  if (size==0 || n==0) return 0;
+  if (n !=0 && size > SIZE_MAX / n) return 0;
+  size_t tot = size * n;
+  if (tot > 0x7fffffff) tot = 0x7fffffff;
+  unsigned int toread = (unsigned int)tot;
   if (stream->is_handle)
-  { DWORD red; BOOL res = ReadFile(stream->h,ptr,toread,&red,NULL);
+  { DWORD red=0; BOOL res = ReadFile(stream->h,ptr,toread,&red,NULL);
     if (!res) stream->herr=true;
+    if (size==0) return 0;
     return red/size;
   }
+  if (toread > stream->len) toread = stream->len;
+  if (stream->pos > stream->len) stream->pos = stream->len;
   if (stream->pos+toread > stream->len) toread = stream->len-stream->pos;
-  memcpy(ptr, (char*)stream->buf + stream->pos, toread); DWORD red = toread;
+  if (toread > 0) {
+    if (stream->buf==NULL) return 0;
+    memcpy(ptr, (char*)stream->buf + stream->pos, toread);
+  }
+  DWORD red = toread;
   stream->pos += red;
+  if (size==0) return 0;
   return red/size;
 }
 
@@ -2907,9 +2941,11 @@ uLong unzlocal_SearchCentralDir(LUFILE *fin)
     uReadSize = ((BUFREADCOMMENT+4) < (uSizeFile-uReadPos)) ? (BUFREADCOMMENT+4) : (uSizeFile-uReadPos);
     if (lufseek(fin,uReadPos,SEEK_SET)!=0) break;
     if (lufread(buf,(uInt)uReadSize,1,fin)!=1) break;
-    for (i=(int)uReadSize-3; (i--)>=0;)
-    { if (((*(buf+i))==0x50) && ((*(buf+i+1))==0x4b) &&	((*(buf+i+2))==0x05) && ((*(buf+i+3))==0x06))
-      { uPosFound = uReadPos+i;	break;
+    if (uReadSize >= 4) {
+      for (i=(int)uReadSize-4; i>=0; i--)
+      { if (i+3 < (int)uReadSize && ((*(buf+i))==0x50) && ((*(buf+i+1))==0x4b) &&	((*(buf+i+2))==0x05) && ((*(buf+i+3))==0x06))
+        { uPosFound = uReadPos+i;	break;
+        }
       }
     }
     if (uPosFound!=0) break;
@@ -3752,7 +3788,19 @@ FILETIME dosdatetime2filetime(WORD dosdate,WORD dostime)
 
 class TUnzip
 { public:
-  TUnzip(const char *pwd) : uf(0), unzbuf(0), currentfile(-1), czei(-1), password(0) {if (pwd!=0) {password=new char[strlen(pwd)+1]; strcpy(password,pwd);}}
+  TUnzip(const char *pwd) : uf(0), unzbuf(0), currentfile(-1), czei(-1), password(0) {
+    if (pwd!=0) {
+      size_t _pwdlen = 0;
+      if (SUCCEEDED(StringCchLengthA(pwd, 1024, &_pwdlen))) {
+        size_t _alloc = _pwdlen + 1;
+        if (_alloc > 1024) _alloc = 1024;
+        password=new char[_alloc];
+        if (password) {
+          StringCchCopyA(password, _alloc, pwd);
+        }
+      }
+    }
+  }
   ~TUnzip() {if (password!=0) delete[] password; password=0; if (unzbuf!=0) delete[] unzbuf; unzbuf=0;}
 
   unzFile uf; int currentfile; ZIPENTRY cze; int czei;
@@ -3774,11 +3822,17 @@ ZRESULT TUnzip::Open(void *z,unsigned int len,DWORD flags)
   //
 #ifdef GetCurrentDirectory
   GetCurrentDirectory(MAX_PATH,rootdir);
+  rootdir[MAX_PATH-1]=0;
 #else
-  _tcscpy(rootdir,_T("\\"));
+  StringCchCopy(rootdir, MAX_PATH, _T("\\"));
 #endif
-  TCHAR lastchar = rootdir[_tcslen(rootdir)-1];
-  if (lastchar!='\\' && lastchar!='/') _tcscat(rootdir,_T("\\"));
+  {
+    size_t _rlen=0; StringCchLength(rootdir, MAX_PATH, &_rlen);
+    if (_rlen>0) {
+      TCHAR lastchar = rootdir[_rlen-1];
+      if (lastchar!='\\' && lastchar!='/') StringCchCat(rootdir, MAX_PATH, _T("\\"));
+    }
+  }
   //
   if (flags==ZIP_HANDLE)
   { // test if we can seek on it. We can't use GetFileType(h)==FILE_TYPE_DISK since it's not on CE.
@@ -3794,16 +3848,21 @@ ZRESULT TUnzip::Open(void *z,unsigned int len,DWORD flags)
 }
 
 ZRESULT TUnzip::SetUnzipBaseDir(const TCHAR *dir)
-{ _tcscpy(rootdir,dir);
-  TCHAR lastchar = rootdir[_tcslen(rootdir)-1];
-  if (lastchar!='\\' && lastchar!='/') _tcscat(rootdir,_T("\\"));
+{ if (dir==NULL) return ZR_ARGS;
+  StringCchCopy(rootdir, MAX_PATH, dir);
+  size_t _len=0; StringCchLength(rootdir, MAX_PATH, &_len);
+  if (_len>0) {
+    TCHAR lastchar = rootdir[_len-1];
+    if (lastchar!='\\' && lastchar!='/') StringCchCat(rootdir, MAX_PATH, _T("\\"));
+  }
   return ZR_OK;
 }
 
 ZRESULT TUnzip::Get(int index,ZIPENTRY *ze)
 { if (index<-1 || index>=(int)uf->gi.number_entry) return ZR_ARGS;
+  if (ze==NULL) return ZR_ARGS;
   if (currentfile!=-1) unzCloseCurrentFile(uf); currentfile=-1;
-  if (index==czei && index!=-1) {memcpy(ze,&cze,sizeof(ZIPENTRY)); return ZR_OK;}
+  if (index==czei && index!=-1) {*ze = cze; return ZR_OK;}
   if (index==-1)
   { ze->index = uf->gi.number_entry;
     ze->name[0]=0;
@@ -3825,15 +3884,23 @@ ZRESULT TUnzip::Get(int index,ZIPENTRY *ze)
   int res = unzlocal_CheckCurrentFileCoherencyHeader(uf,&iSizeVar,&offset,&extralen);
   if (res!=UNZ_OK) return ZR_CORRUPT;
   if (lufseek(uf->file,offset,SEEK_SET)!=0) return ZR_READ;
-  unsigned char *extra = new unsigned char[extralen];
-  if (lufread(extra,1,(uInt)extralen,uf->file)!=extralen) {delete[] extra; return ZR_READ;}
+  if (extralen > 65536) return ZR_CORRUPT;
+  unsigned char *extra = nullptr;
+  if (extralen > 0) {
+    try { extra = new unsigned char[extralen]; } catch (...) { return ZR_NOALLOC; }
+    if (extra==NULL) return ZR_NOALLOC;
+    if (lufread(extra,1,(uInt)extralen,uf->file)!=extralen) {delete[] extra; return ZR_READ;}
+  } else {
+    extra = nullptr;
+  }
   //
   ze->index=uf->num_file;
   TCHAR tfn[MAX_PATH];
 #ifdef UNICODE
   MultiByteToWideChar(CP_UTF8,0,fn,-1,tfn,MAX_PATH);
+  tfn[MAX_PATH-1]=0;
 #else
-  strcpy(tfn,fn);
+  StringCchCopyA(tfn, MAX_PATH, fn);
 #endif
   // As a safety feature: if the zip filename had sneaky stuff
   // like "c:\windows\file.txt" or "\windows\file.txt" or "fred\..\..\..\windows\file.txt"
@@ -3853,7 +3920,7 @@ ZRESULT TUnzip::Get(int index,ZIPENTRY *ze)
     c=_tcsstr(sfn,_T("/..\\")); if (c!=0) {sfn=c+4; continue;}
     break;
   }
-  _tcscpy(ze->name, sfn);
+  StringCchCopy(ze->name, MAX_PATH, sfn);
 
 
   // zip has an 'attribute' 32bit value. Its lower half is windows stuff
@@ -3919,16 +3986,18 @@ ZRESULT TUnzip::Get(int index,ZIPENTRY *ze)
   }
   //
   if (extra!=0) delete[] extra;
-  memcpy(&cze,ze,sizeof(ZIPENTRY)); czei=index;
+  cze = *ze; czei=index;
   return ZR_OK;
 }
 
 ZRESULT TUnzip::Find(const TCHAR *tname,bool ic,int *index,ZIPENTRY *ze)
 { char name[MAX_PATH];
+  name[0]=0;
 #ifdef UNICODE
-  WideCharToMultiByte(CP_UTF8,0,tname,-1,name,MAX_PATH,0,0);
+  if (tname!=NULL) WideCharToMultiByte(CP_UTF8,0,tname,-1,name,MAX_PATH,0,0);
+  name[MAX_PATH-1]=0;
 #else
-  strcpy(name,tname);
+  if (tname!=NULL) StringCchCopyA(name, MAX_PATH, tname);
 #endif
   int res = unzLocateFile(uf,name,ic?CASE_INSENSITIVE:CASE_SENSITIVE);
   if (res!=UNZ_OK)
@@ -3948,17 +4017,24 @@ ZRESULT TUnzip::Find(const TCHAR *tname,bool ic,int *index,ZIPENTRY *ze)
 
 void EnsureDirectory(const TCHAR *rootdir, const TCHAR *dir)
 { if (rootdir!=0 && GetFileAttributes(rootdir)==0xFFFFFFFF) CreateDirectory(rootdir,0);
-  if (*dir==0) return;
+  if (dir==NULL || *dir==0) return;
   const TCHAR *lastslash=dir, *c=lastslash;
   while (*c!=0) {if (*c=='/' || *c=='\\') lastslash=c; c++;}
   const TCHAR *name=lastslash;
   if (lastslash!=dir)
-  { TCHAR tmp[MAX_PATH]; memcpy(tmp,dir,sizeof(TCHAR)*(lastslash-dir));
-    tmp[lastslash-dir]=0;
+  { size_t _len = (size_t)(lastslash - dir);
+    if (_len >= MAX_PATH) _len = MAX_PATH-1;
+    TCHAR tmp[MAX_PATH]; 
+    if (_len>0) {
+      memcpy(tmp,dir,sizeof(TCHAR)*_len);
+    }
+    tmp[_len]=0;
     EnsureDirectory(rootdir,tmp);
     name++;
   }
-  TCHAR cd[MAX_PATH]; *cd=0; if (rootdir!=0) _tcscpy(cd,rootdir); _tcscat(cd,dir);
+  TCHAR cd[MAX_PATH]; cd[0]=0;
+  if (rootdir!=0) StringCchCopy(cd, MAX_PATH, rootdir);
+  StringCchCat(cd, MAX_PATH, dir);
   if (GetFileAttributes(cd)==0xFFFFFFFF) CreateDirectory(cd,NULL);
 }
 
@@ -4009,11 +4085,11 @@ ZRESULT TUnzip::Unzip(int index,void *dst,unsigned int len,DWORD flags)
     // a malicious zip could unzip itself into c:\windows. Our solution is that GetZipItem (which
     // is how the user retrieve's the file's name within the zip) never returns absolute paths.
     const TCHAR *name=ufn; const TCHAR *c=name; while (*c!=0) {if (*c=='/' || *c=='\\') name=c+1; c++;}
-    TCHAR dir[MAX_PATH]; _tcscpy(dir,ufn); if (name==ufn) *dir=0; else dir[name-ufn]=0;
-    TCHAR fn[MAX_PATH]; 
+    TCHAR dir[MAX_PATH]; StringCchCopy(dir, MAX_PATH, ufn); if (name==ufn) dir[0]=0; else { size_t _dlen = (size_t)(name-ufn); if (_dlen>=MAX_PATH) _dlen=MAX_PATH-1; dir[_dlen]=0; }
+    TCHAR fn[MAX_PATH]; fn[0]=0;
     bool isabsolute = (dir[0]=='/' || dir[0]=='\\' || (dir[0]!=0 && dir[1]==':'));
-    if (isabsolute) {wsprintf(fn,_T("%s%s"),dir,name); EnsureDirectory(0,dir);}
-    else {wsprintf(fn,_T("%s%s%s"),rootdir,dir,name); EnsureDirectory(rootdir,dir);}
+    if (isabsolute) {StringCchCopy(fn, MAX_PATH, dir); StringCchCat(fn, MAX_PATH, name); EnsureDirectory(0,dir);}
+    else {StringCchCopy(fn, MAX_PATH, rootdir); StringCchCat(fn, MAX_PATH, dir); StringCchCat(fn, MAX_PATH, name); EnsureDirectory(rootdir,dir);}
     //
     h = CreateFile(fn,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,ze.attr,NULL);
   }
@@ -4079,8 +4155,7 @@ unsigned int FormatZipMessageU(ZRESULT code, TCHAR *buf,unsigned int len)
   }
   unsigned int mlen=(unsigned int)_tcslen(msg);
   if (buf==0 || len==0) return mlen;
-  unsigned int n=mlen; if (n+1>len) n=len-1;
-  _tcsncpy(buf,msg,n); buf[n]=0;
+  StringCchCopyN(buf, len, msg, len-1);
   return mlen;
 }
 
@@ -4091,11 +4166,13 @@ typedef struct
 } TUnzipHandleData;
 
 HZIP OpenZipInternal(void *z,unsigned int len,DWORD flags, const char *password)
-{ TUnzip *unz = new TUnzip(password);
+{ std::unique_ptr<TUnzip> unz;
+  try { unz = std::make_unique<TUnzip>(password); } catch (...) { lasterrorU = ZR_NOALLOC; return 0; }
   lasterrorU = unz->Open(z,len,flags);
-  if (lasterrorU!=ZR_OK) {delete unz; return 0;}
-  TUnzipHandleData *han = new TUnzipHandleData;
-  han->flag=1; han->unz=unz; return (HZIP)han;
+  if (lasterrorU!=ZR_OK) { return 0; }
+  std::unique_ptr<TUnzipHandleData> han;
+  try { han = std::make_unique<TUnzipHandleData>(); } catch (...) { lasterrorU = ZR_NOALLOC; unz->Close(); return 0; }
+  han->flag=1; han->unz=unz.release(); return (HZIP)han.release();
 }
 HZIP OpenZipHandle(HANDLE h, const char *password) {return OpenZipInternal((void*)h,0,ZIP_HANDLE,password);}
 HZIP OpenZip(const TCHAR *fn, const char *password) {return OpenZipInternal((void*)fn,0,ZIP_FILENAME,password);}

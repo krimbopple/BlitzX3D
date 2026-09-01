@@ -4,6 +4,7 @@
 #include "../gxruntime/gxutf8.h"
 #include "../MultiLang/MultiLang.h"
 #include <algorithm>
+#include <cmath>
 #include "../blitz3d/texture.h"
 #include "../blitz3d/cachedtexture.h"
 
@@ -22,6 +23,7 @@ public:
     int origWidth, origHeight;
     float drawScaleX = 1.0f;
     float drawScaleY = 1.0f;
+    float tform[2][2] = { {1.0f, 0.0f},{0.0f, 1.0f} };
     bbImage(const std::vector<gxCanvas*>& f, int origW = -1, int origH = -1) : frames(f) {
         if (origW == -1) {
             origWidth = frames[0]->getWidth();
@@ -43,6 +45,39 @@ public:
     {
         return frames;
     }
+
+    bool isTFormIdentity() const {
+        const float eps = 1e-6f;
+        return fabsf(tform[0][0] - 1.0f) < eps && fabsf(tform[1][1] - 1.0f) < eps && fabsf(tform[0][1]) < eps && fabsf(tform[1][0]) < eps;
+    }
+
+    bool isIdentity() const {
+        return isTFormIdentity() && drawScaleX == 1.0f && drawScaleY == 1.0f;
+    }
+
+    void getCombinedMat(float out[2][2]) const {
+        out[0][0] = drawScaleX * tform[0][0];
+        out[0][1] = drawScaleX * tform[0][1];
+        out[1][0] = drawScaleY * tform[1][0];
+        out[1][1] = drawScaleY * tform[1][1];
+    }
+
+    void resetTForm() {
+        tform[0][0] = 1.0f; tform[0][1] = 0.0f;
+        tform[1][0] = 0.0f; tform[1][1] = 1.0f;
+    }
+
+    void mulTForm(float a, float b, float c, float d) {
+        float curA = tform[0][0], curC = tform[0][1];
+        float curB = tform[1][0], curD = tform[1][1];
+        float na = a * curA + c * curB;
+        float nb = b * curA + d * curB;
+        float nc = a * curC + c * curD;
+        float nd = b * curC + d * curD;
+        tform[0][0] = na; tform[0][1] = nc;
+        tform[1][0] = nb; tform[1][1] = nd;
+    }
+
     void replaceFrame(int n, gxCanvas* c)
     {
         gx_graphics->freeCanvas(frames[n]);
@@ -50,6 +85,7 @@ public:
         savePixels();
         drawScaleX = 1.0f;
         drawScaleY = 1.0f;
+        resetTForm();
     }
     void savePixels()
     {
@@ -1393,6 +1429,10 @@ bbImage* bbCopyImage(bbImage* i)
         frames.push_back(c);
     }
     bbImage* t = new bbImage(frames, i->origWidth, i->origHeight);
+    t->drawScaleX = i->drawScaleX;
+    t->drawScaleY = i->drawScaleY;
+    t->tform[0][0] = i->tform[0][0]; t->tform[0][1] = i->tform[0][1];
+    t->tform[1][0] = i->tform[1][0]; t->tform[1][1] = i->tform[1][1];
     image_set.insert(t);
     return t;
 }
@@ -1484,14 +1524,21 @@ void bbDrawImage(bbImage* i, int x, int y, int frame)
     debugImage(i, "DrawImage", frame);
     gxCanvas* c = i->getFrames()[frame];
     int w = c->getWidth(), h = c->getHeight();
-    if (i->drawScaleX != 1.0f || i->drawScaleY != 1.0f) {
-        int hx, hy; c->getHandle(&hx, &hy);
-        int dw = (int)(w * i->drawScaleX + 0.5f);
-        int dh = (int)(h * i->drawScaleY + 0.5f);
-        int shx = (int)(hx * i->drawScaleX + 0.5f);
-        int shy = (int)(hy * i->drawScaleY + 0.5f);
-        bool solid = !c->hasMask() && !((c->getFlags() & gxCanvas::CANVAS_TEX_ALPHA) || c->format.hasAlphaMask());
-        gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, 0, 0, w, h, solid);
+    if (!i->isIdentity()) {
+        float m[2][2]; i->getCombinedMat(m);
+        bool isScaleOnly = fabsf(m[0][1]) < 1e-6f && fabsf(m[1][0]) < 1e-6f;
+        if (isScaleOnly) {
+            float sx = m[0][0], sy = m[1][1];
+            int hx, hy; c->getHandle(&hx, &hy);
+            int dw = (int)(w * sx + 0.5f);
+            int dh = (int)(h * sy + 0.5f);
+            int shx = (int)(hx * sx + 0.5f);
+            int shy = (int)(hy * sy + 0.5f);
+            bool solid = !c->hasMask() && !((c->getFlags() & gxCanvas::CANVAS_TEX_ALPHA) || c->format.hasAlphaMask());
+            gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, 0, 0, w, h, solid);
+            return;
+        }
+        gx_canvas->blitTForm(x, y, c, 0, 0, w, h, m, filter);
         return;
     }
     if (c->hasMask()) {
@@ -1509,6 +1556,23 @@ void bbDrawBlock(bbImage* i, int x, int y, int frame)
 {
     debugImage(i, "DrawBlock", frame);
     gxCanvas* c = i->getFrames()[frame];
+    if (!i->isIdentity()) {
+        float m[2][2]; i->getCombinedMat(m);
+        bool isScaleOnly = fabsf(m[0][1]) < 1e-6f && fabsf(m[1][0]) < 1e-6f;
+        if (isScaleOnly) {
+            float sx = m[0][0], sy = m[1][1];
+            int w = c->getWidth(), h = c->getHeight();
+            int hx, hy; c->getHandle(&hx, &hy);
+            int dw = (int)(w * sx + 0.5f);
+            int dh = (int)(h * sy + 0.5f);
+            int shx = (int)(hx * sx + 0.5f);
+            int shy = (int)(hy * sy + 0.5f);
+            gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, 0, 0, w, h, true);
+            return;
+        }
+        gx_canvas->blitTForm(x, y, c, 0, 0, c->getWidth(), c->getHeight(), m, filter);
+        return;
+    }
     gx_canvas->blit(x, y, c, 0, 0, c->getWidth(), c->getHeight(), true);
 }
 
@@ -1555,14 +1619,21 @@ void bbDrawImageRect(bbImage* i, int x, int y, int r_x, int r_y, int r_w, int r_
 {
     debugImage(i, "DrawImageRect", frame);
     gxCanvas* c = i->getFrames()[frame];
-    if (i->drawScaleX != 1.0f || i->drawScaleY != 1.0f) {
-        int hx, hy; c->getHandle(&hx, &hy);
-        int dw = (int)(r_w * i->drawScaleX + 0.5f);
-        int dh = (int)(r_h * i->drawScaleY + 0.5f);
-        int shx = (int)(hx * i->drawScaleX + 0.5f);
-        int shy = (int)(hy * i->drawScaleY + 0.5f);
-        bool solid = !c->hasMask() && !((c->getFlags() & gxCanvas::CANVAS_TEX_ALPHA) || c->format.hasAlphaMask());
-        gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, r_x, r_y, r_w, r_h, solid);
+    if (!i->isIdentity()) {
+        float m[2][2]; i->getCombinedMat(m);
+        bool isScaleOnly = fabsf(m[0][1]) < 1e-6f && fabsf(m[1][0]) < 1e-6f;
+        if (isScaleOnly) {
+            float sx = m[0][0], sy = m[1][1];
+            int hx, hy; c->getHandle(&hx, &hy);
+            int dw = (int)(r_w * sx + 0.5f);
+            int dh = (int)(r_h * sy + 0.5f);
+            int shx = (int)(hx * sx + 0.5f);
+            int shy = (int)(hy * sy + 0.5f);
+            bool solid = !c->hasMask() && !((c->getFlags() & gxCanvas::CANVAS_TEX_ALPHA) || c->format.hasAlphaMask());
+            gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, r_x, r_y, r_w, r_h, solid);
+            return;
+        }
+        gx_canvas->blitTForm(x, y, c, r_x, r_y, r_w, r_h, m, filter);
         return;
     }
     if (c->hasMask()) {
@@ -1587,6 +1658,22 @@ void bbDrawBlockRect(bbImage* i, int x, int y, int r_x, int r_y, int r_w, int r_
 {
     debugImage(i, "DrawBlockRect", frame);
     gxCanvas* c = i->getFrames()[frame];
+    if (!i->isIdentity()) {
+        float m[2][2]; i->getCombinedMat(m);
+        bool isScaleOnly = fabsf(m[0][1]) < 1e-6f && fabsf(m[1][0]) < 1e-6f;
+        if (isScaleOnly) {
+            float sx = m[0][0], sy = m[1][1];
+            int hx, hy; c->getHandle(&hx, &hy);
+            int dw = (int)(r_w * sx + 0.5f);
+            int dh = (int)(r_h * sy + 0.5f);
+            int shx = (int)(hx * sx + 0.5f);
+            int shy = (int)(hy * sy + 0.5f);
+            gx_canvas->blitstretch(x + hx - shx, y + hy - shy, dw, dh, c, r_x, r_y, r_w, r_h, true);
+            return;
+        }
+        gx_canvas->blitTForm(x, y, c, r_x, r_y, r_w, r_h, m, filter);
+        return;
+    }
     gx_canvas->blit(x, y, c, r_x, r_y, r_w, r_h, true);
 }
 
@@ -1622,7 +1709,18 @@ int bbImageWidth(bbImage* i)
     debugImage(i, "ImageWidth");
     gxCanvas* c = i->getFrames()[0];
     int hx, hy; c->getHandle(&hx, &hy);
-    return (int)((c->getWidth() - hx) * i->drawScaleX + 0.5f);
+    int w = c->getWidth(), h = c->getHeight();
+    if (i->isIdentity()) return (int)((w - hx) + 0.5f);
+    float m[2][2]; i->getCombinedMat(m);
+    float xs[4], ys[4];
+    float px[4] = { (float)-hx, (float)(w - hx), (float)(w - hx), (float)-hx };
+    float py[4] = { (float)-hy, (float)-hy, (float)(h - hy), (float)(h - hy) };
+    float maxx = -1e30f;
+    for (int k = 0; k < 4; ++k) {
+        float tx = m[0][0] * px[k] + m[0][1] * py[k];
+        if (tx > maxx) maxx = tx;
+    }
+    return (int)(maxx + 0.5f);
 }
 
 int bbImageHeight(bbImage* i)
@@ -1630,7 +1728,17 @@ int bbImageHeight(bbImage* i)
     debugImage(i, "ImageHeight");
     gxCanvas* c = i->getFrames()[0];
     int hx, hy; c->getHandle(&hx, &hy);
-    return (int)((c->getHeight() - hy) * i->drawScaleY + 0.5f);
+    int w = c->getWidth(), h = c->getHeight();
+    if (i->isIdentity()) return (int)((h - hy) + 0.5f);
+    float m[2][2]; i->getCombinedMat(m);
+    float px[4] = { (float)-hx, (float)(w - hx), (float)(w - hx), (float)-hx };
+    float py[4] = { (float)-hy, (float)-hy, (float)(h - hy), (float)(h - hy) };
+    float maxy = -1e30f;
+    for (int k = 0; k < 4; ++k) {
+        float ty = m[1][0] * px[k] + m[1][1] * py[k];
+        if (ty > maxy) maxy = ty;
+    }
+    return (int)(maxy + 0.5f);
 }
 
 int bbImageXHandle(bbImage* i)
@@ -1649,12 +1757,58 @@ int bbImageYHandle(bbImage* i)
     return y;
 }
 
+static void getImageQuad(bbImage* i, gxCanvas* c, int x, int y, vec2 out[4]) {
+    int hx, hy; c->getHandle(&hx, &hy);
+    int w = c->getWidth(), h = c->getHeight();
+    float m[2][2]; i->getCombinedMat(m);
+    float px[4] = { (float)-hx, (float)(w - hx), (float)(w - hx), (float)-hx };
+    float py[4] = { (float)-hy, (float)-hy, (float)(h - hy), (float)(h - hy) };
+    for (int k = 0; k < 4; ++k) {
+        float tx = m[0][0] * px[k] + m[0][1] * py[k];
+        float ty = m[1][0] * px[k] + m[1][1] * py[k];
+        out[k].x = x + tx;
+        out[k].y = y + ty;
+    }
+}
+
+static bool quadsOverlap(const vec2 a[4], const vec2 b[4]) {
+    auto axisTest = [&](float ax, float ay) -> bool {
+        float minA = 1e30f, maxA = -1e30f, minB = 1e30f, maxB = -1e30f;
+        for (int k = 0; k < 4; ++k) {
+            float p = a[k].x * ax + a[k].y * ay;
+            if (p < minA) minA = p; if (p > maxA) maxA = p;
+            float q = b[k].x * ax + b[k].y * ay;
+            if (q < minB) minB = q; if (q > maxB) maxB = q;
+        }
+        return !(maxA < minB || maxB < minA);
+    };
+    for (int e = 0; e < 4; ++e) {
+        int n = (e + 1) % 4;
+        float ex = a[n].x - a[e].x, ey = a[n].y - a[e].y;
+        float ax = -ey, ay = ex;
+        if (!axisTest(ax, ay)) return false;
+    }
+    for (int e = 0; e < 4; ++e) {
+        int n = (e + 1) % 4;
+        float ex = b[n].x - b[e].x, ey = b[n].y - b[e].y;
+        float ax = -ey, ay = ex;
+        if (!axisTest(ax, ay)) return false;
+    }
+    return true;
+}
+
 int bbImagesOverlap(bbImage* i1, int x1, int y1, bbImage* i2, int x2, int y2)
 {
     debugImage(i1, "ImagesOverlap");
     debugImage(i2, "ImagesOverlap");
     gxCanvas* c1 = i1->getFrames()[0];
     gxCanvas* c2 = i2->getFrames()[0];
+    if (!i1->isIdentity() || !i2->isIdentity()) {
+        vec2 q1[4], q2[4];
+        getImageQuad(i1, c1, x1, y1, q1);
+        getImageQuad(i2, c2, x2, y2, q2);
+        return quadsOverlap(q1, q2) ? 1 : 0;
+    }
     return c1->collide(x1, y1, c2, x2, y2, true);
 }
 
@@ -1664,6 +1818,12 @@ int bbImagesCollide(bbImage* i1, int x1, int y1, int f1, bbImage* i2, int x2, in
     debugImage(i2, "ImagesCollide", f2);
     gxCanvas* c1 = i1->getFrames()[f1];
     gxCanvas* c2 = i2->getFrames()[f2];
+    if (!i1->isIdentity() || !i2->isIdentity()) {
+        vec2 q1[4], q2[4];
+        getImageQuad(i1, c1, x1, y1, q1);
+        getImageQuad(i2, c2, x2, y2, q2);
+        return quadsOverlap(q1, q2) ? 1 : 0;
+    }
     return c1->collide(x1, y1, c2, x2, y2, false);
 }
 
@@ -1677,6 +1837,11 @@ int bbImageRectOverlap(bbImage* i, int x, int y, int x2, int y2, int w2, int h2)
 {
     debugImage(i, "ImageRectOverlap");
     gxCanvas* c = i->getFrames()[0];
+    if (!i->isIdentity()) {
+        vec2 q[4]; getImageQuad(i, c, x, y, q);
+        vec2 r[4] = { {(float)x2,(float)y2}, {(float)(x2+w2),(float)y2}, {(float)(x2+w2),(float)(y2+h2)}, {(float)x2,(float)(y2+h2)} };
+        return quadsOverlap(q, r) ? 1 : 0;
+    }
     return c->rect_collide(x, y, x2, y2, w2, h2, true);
 }
 
@@ -1684,6 +1849,11 @@ int bbImageRectCollide(bbImage* i, int x, int y, int f, int x2, int y2, int w2, 
 {
     debugImage(i, "ImageRectCollide", f);
     gxCanvas* c = i->getFrames()[f];
+    if (!i->isIdentity()) {
+        vec2 q[4]; getImageQuad(i, c, x, y, q);
+        vec2 r[4] = { {(float)x2,(float)y2}, {(float)(x2+w2),(float)y2}, {(float)(x2+w2),(float)(y2+h2)}, {(float)x2,(float)(y2+h2)} };
+        return quadsOverlap(q, r) ? 1 : 0;
+    }
     return c->rect_collide(x, y, x2, y2, w2, h2, false);
 }
 
@@ -1700,26 +1870,7 @@ int bbImageHeightUnscaled(bbImage* i) {
 void bbTFormImage(bbImage* i, float a, float b, float c, float d)
 {
     debugImage(i, "TFormImage");
-    const std::vector<gxCanvas*>& f = i->getFrames();
-    int k;
-    for (k = 0; k < f.size(); ++k)
-    {
-        if (f[k] == gx_canvas)
-        {
-            bbSetBuffer(gx_graphics->getFrontCanvas());
-            break;
-        }
-    }
-    float m[2][2];
-    m[0][0] = a; m[1][0] = b; m[0][1] = c; m[1][1] = d;
-    for (k = 0; k < f.size(); ++k)
-    {
-        gxCanvas* c = f[k];
-        int hx, hy; c->getHandle(&hx, &hy);
-        gxCanvas* t = tformCanvas(c, m, hx, hy);
-        i->replaceFrame(k, t);
-        t->backup();
-    }
+    i->mulTForm(a, b, c, d);
 }
 
 void bbSetTFormMethod(int method) {

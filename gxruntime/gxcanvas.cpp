@@ -1484,6 +1484,192 @@ void gxCanvas::copyPixel(int x, int y, gxCanvas* src, int src_x, int src_y) {
     src->unlock(); unlock();
 }
 
+void gxCanvas::blitTForm(int x, int y, gxCanvas* src, int src_x, int src_y, int src_w, int src_h, float mat[2][2], bool filter) {
+    if (src_w <= 0 || src_h <= 0) return;
+    int hx, hy; src->getHandle(&hx, &hy);
+    float ax = mat[0][0] * (-hx) + mat[0][1] * (-hy);
+    float ay = mat[1][0] * (-hx) + mat[1][1] * (-hy);
+    float baseX = (float)(x + origin_x) + ax;
+    float baseY = (float)(y + origin_y) + ay;
+    float rx = mat[0][0] * src_w;
+    float ry = mat[1][0] * src_w;
+    float sx = mat[0][1] * src_h;
+    float sy = mat[1][1] * src_h;
+
+    if (!isRenderTarget(surf)) {
+        float det = mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0];
+        if (fabsf(det) < 1e-6f) return;
+        float inv00 = mat[1][1] / det;
+        float inv01 = -mat[0][1] / det;
+        float inv10 = -mat[1][0] / det;
+        float inv11 = mat[0][0] / det;
+        float xs[4] = { baseX, baseX + rx, baseX + sx, baseX + rx + sx };
+        float ys[4] = { baseY, baseY + ry, baseY + sy, baseY + ry + sy };
+        float minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
+        for (int k = 1; k < 4; ++k) { if (xs[k] < minx) minx = xs[k]; if (xs[k] > maxx) maxx = xs[k]; if (ys[k] < miny) miny = ys[k]; if (ys[k] > maxy) maxy = ys[k]; }
+        int ix0 = (int)floorf(minx); int ix1 = (int)ceilf(maxx);
+        int iy0 = (int)floorf(miny); int iy1 = (int)ceilf(maxy);
+        if (ix0 < viewport.left) ix0 = viewport.left;
+        if (iy0 < viewport.top) iy0 = viewport.top;
+        if (ix1 > viewport.right) ix1 = viewport.right;
+        if (iy1 > viewport.bottom) iy1 = viewport.bottom;
+        if (ix0 >= ix1 || iy0 >= iy1) return;
+        if (!src->lock()) return;
+        if (!lock()) { src->unlock(); return; }
+        int srcW = src->clip_rect.right, srcH = src->clip_rect.bottom;
+        unsigned maskRGB = src->hasMask() ? (src->format.toARGB(src->mask_surf) & 0x00ffffffu) : ~0u;
+        bool doMask = maskRGB != ~0u;
+        bool doAlpha = src->format.hasAlphaMask() || (src->getFlags() & CANVAS_TEX_ALPHA);
+        for (int dy = iy0; dy < iy1; ++dy) {
+            for (int dx = ix0; dx < ix1; ++dx) {
+                float fx = (dx + 0.5f) - baseX;
+                float fy = (dy + 0.5f) - baseY;
+                float ox = inv00 * fx + inv01 * fy;
+                float oy = inv10 * fx + inv11 * fy;
+                if (ox < 0.0f || ox >= (float)src_w || oy < 0.0f || oy >= (float)src_h) continue;
+                float sxf = (float)src_x + ox;
+                float syf = (float)src_y + oy;
+                unsigned argb;
+                if (!filter) {
+                    int ix = (int)floorf(sxf); int iy = (int)floorf(syf);
+                    if (ix < src_x) ix = src_x; else if (ix >= src_x + src_w) ix = src_x + src_w - 1;
+                    if (iy < src_y) iy = src_y; else if (iy >= src_y + src_h) iy = src_y + src_h - 1;
+                    if (ix < 0) ix = 0; else if (ix >= srcW) ix = srcW - 1;
+                    if (iy < 0) iy = 0; else if (iy >= srcH) iy = srcH - 1;
+                    argb = src->format.toARGB(src->getPixelFast(ix, iy));
+                    if (doMask && (argb & 0x00ffffffu) == maskRGB) continue;
+                    if (!doAlpha) argb |= 0xff000000u;
+                } else {
+                    int ix = (int)floorf(sxf); int iy = (int)floorf(syf);
+                    float fxfrac = sxf - ix; float fyfrac = syf - iy;
+                    auto getC = [&](int xx, int yy) -> unsigned {
+                        if (xx < src_x) xx = src_x; else if (xx >= src_x + src_w) xx = src_x + src_w - 1;
+                        if (yy < src_y) yy = src_y; else if (yy >= src_y + src_h) yy = src_y + src_h - 1;
+                        if (xx < 0) xx = 0; else if (xx >= srcW) xx = srcW - 1;
+                        if (yy < 0) yy = 0; else if (yy >= srcH) yy = srcH - 1;
+                        unsigned c = src->format.toARGB(src->getPixelFast(xx, yy));
+                        if (!doAlpha) c |= 0xff000000u;
+                        return c;
+                    };
+                    unsigned c00 = getC(ix, iy); unsigned c10 = getC(ix+1, iy);
+                    unsigned c01 = getC(ix, iy+1); unsigned c11 = getC(ix+1, iy+1);
+                    if (doMask) {
+                        auto masked = [&](unsigned c)->unsigned { return (c & 0x00ffffffu) == maskRGB ? 0 : c; };
+                        c00 = masked(c00); c10 = masked(c10); c01 = masked(c01); c11 = masked(c11);
+                    }
+                    int w1 = (int)((1-fxfrac)*(1-fyfrac)*256); int w2 = (int)(fxfrac*(1-fyfrac)*256);
+                    int w3 = (int)((1-fxfrac)*fyfrac*256); int w4 = (int)(fxfrac*fyfrac*256);
+                    int a = ((c00>>24)&0xFF)*w1 + ((c10>>24)&0xFF)*w2 + ((c01>>24)&0xFF)*w3 + ((c11>>24)&0xFF)*w4;
+                    int r = ((c00>>16)&0xFF)*w1 + ((c10>>16)&0xFF)*w2 + ((c01>>16)&0xFF)*w3 + ((c11>>16)&0xFF)*w4;
+                    int g = ((c00>>8)&0xFF)*w1 + ((c10>>8)&0xFF)*w2 + ((c01>>8)&0xFF)*w3 + ((c11>>8)&0xFF)*w4;
+                    int b = (c00&0xFF)*w1 + (c10&0xFF)*w2 + (c01&0xFF)*w3 + (c11&0xFF)*w4;
+                    a = (a>>8)&0xFF; r=(r>>8)&0xFF; g=(g>>8)&0xFF; b=(b>>8)&0xFF;
+                    if (a==0 && doMask) continue;
+                    argb = (a<<24)|(r<<16)|(g<<8)|b;
+                }
+                format.setPixel(locked_surf + dy*locked_pitch + dx*format.getPitch(), format.fromARGB(argb));
+            }
+        }
+        src->unlock(); unlock();
+        RECT dmg = {ix0,iy0,ix1,iy1};
+        damage(dmg);
+        return;
+    }
+    IDirect3DDevice9* dev = graphics->dir3dDev;
+    if (!dev) return;
+    bool useAlpha = (src->getFlags() & CANVAS_TEX_ALPHA) != 0 || src->format.hasAlphaMask();
+    bool useMask = src->hasMask();
+    unsigned maskRGB = useMask ? (src->format.toARGB(src->mask_surf) & 0x00ffffffu) : ~0u;
+    IDirect3DBaseTexture9* texBase = src->getTexture();
+    IDirect3DTexture9* builtTex = nullptr;
+    if (!texBase || useMask || isBoundAsRenderTarget(dev, src->surf)) {
+        builtTex = getOrBuildBlitTex(dev, src, maskRGB);
+        if (!builtTex) return;
+        texBase = builtTex;
+    }
+    IDirect3DTexture9* tex = (IDirect3DTexture9*)texBase;
+    int texW = src->clip_rect.right; int texH = src->clip_rect.bottom;
+    if (texW <= 0) texW = src->getWidth(); if (texH <= 0) texH = src->getHeight();
+    float u0 = (float)src_x / texW; float v0 = (float)src_y / texH;
+    float u1 = (float)(src_x + src_w) / texW; float v1 = (float)(src_y + src_h) / texH;
+    float p0x = baseX - 0.5f, p0y = baseY - 0.5f;
+    float p1x = baseX + rx - 0.5f, p1y = baseY + ry - 0.5f;
+    float p2x = baseX + sx - 0.5f, p2y = baseY + sy - 0.5f;
+    float p3x = baseX + rx + sx - 0.5f, p3y = baseY + ry + sy - 0.5f;
+    QuadVertex verts[4] = {
+        { p0x, p0y, 0.0f, 1.0f, u0, v0 },
+        { p1x, p1y, 0.0f, 1.0f, u1, v0 },
+        { p2x, p2y, 0.0f, 1.0f, u0, v1 },
+        { p3x, p3y, 0.0f, 1.0f, u1, v1 }
+    };
+    SavedBlitState saved; saveBlitState(dev, saved);
+    dev->SetRenderTarget(0, surf);
+    dev->SetDepthStencilSurface(nullptr);
+    D3DVIEWPORT9 vp = { 0,0,(DWORD)clip_rect.right,(DWORD)clip_rect.bottom,0.0f,1.0f };
+    dev->SetViewport(&vp);
+    dev->SetRenderState(D3DRS_ZENABLE, FALSE);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+    if (useAlpha) {
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+        dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+        dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    } else if (useMask) {
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+        dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+        dev->SetRenderState(D3DRS_ALPHAREF, 0);
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    } else {
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    }
+    dev->SetSamplerState(0, D3DSAMP_MAGFILTER, filter ? D3DTEXF_LINEAR : D3DTEXF_POINT);
+    dev->SetSamplerState(0, D3DSAMP_MINFILTER, filter ? D3DTEXF_LINEAR : D3DTEXF_POINT);
+    dev->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+    if (effect2D) {
+        D3DXMATRIX proj, view, world; D3DXMatrixIdentity(&world); D3DXMatrixIdentity(&view);
+        D3DVIEWPORT9 curVP; dev->GetViewport(&curVP);
+        float w = (float)curVP.Width, h = (float)curVP.Height;
+        D3DXMatrixOrthoOffCenterLH(&proj, 0, w, h, 0, 0, 1);
+        effect2D->setAutoMatrices(world, view, proj);
+        effect2D->setTexture("tex0", tex);
+        effect2D->setTexture("SceneTex", tex);
+        UINT passes; if (effect2D->begin(&passes)) {
+            for (UINT p=0;p<passes;++p){ effect2D->beginPass(p); dev->SetFVF(QUAD_FVF); dev->SetTexture(0, tex); dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, verts, sizeof(QuadVertex)); effect2D->endPass(); }
+            effect2D->end();
+        }
+    } else {
+        FillModeGuard guard(dev);
+        dev->SetTexture(0, tex);
+        dev->SetFVF(QUAD_FVF);
+        dev->BeginScene();
+        dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, verts, sizeof(QuadVertex));
+        dev->EndScene();
+    }
+    restoreBlitState(dev, saved);
+    float xs[4] = { p0x, p1x, p2x, p3x };
+    float ys[4] = { p0y, p1y, p2y, p3y };
+    float minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
+    for (int k=1;k<4;++k){ if(xs[k]<minx) minx=xs[k]; if(xs[k]>maxx) maxx=xs[k]; if(ys[k]<miny) miny=ys[k]; if(ys[k]>maxy) maxy=ys[k]; }
+    RECT r; r.left = (LONG)floorf(minx); r.top = (LONG)floorf(miny); r.right = (LONG)ceilf(maxx); r.bottom = (LONG)ceilf(maxy);
+    if (r.left < viewport.left) r.left = viewport.left; if (r.top < viewport.top) r.top = viewport.top;
+    if (r.right > viewport.right) r.right = viewport.right; if (r.bottom > viewport.bottom) r.bottom = viewport.bottom;
+    damage(r);
+}
+
 void gxCanvas::setCubeMode(int mode) { cube_mode = mode; }
 
 void gxCanvas::setCubeFace(int face) {

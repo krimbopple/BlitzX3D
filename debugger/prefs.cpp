@@ -97,6 +97,7 @@ void Prefs::open() {
 	inipp::get_value(ini.sections["EDITOR"], "TabSpaces", edit_tabs);
 	inipp::get_value(ini.sections["EDITOR"], "BackupCount", edit_backup);
 	inipp::get_value(ini.sections["EDITOR"], "ToolbarImage", img_toolbar);
+	inipp::get_value(ini.sections["EDITOR"], "SampleWindowSeconds", sampleWindowSeconds);
 
 	std::string recentFile;
 	for(int i = 1; i < 11; i++) {
@@ -134,6 +135,7 @@ void Prefs::setDefault() {
 
 	edit_tabs = 4;
 	edit_backup = 2;
+	sampleWindowSeconds = 30;
 
 	img_toolbar = "toolbar.bmp";
 

@@ -92,6 +92,7 @@ public:
 	afx_msg void updateCmdUI(CCmdUI* ui);
 
 	afx_msg void OnWindowPosChanging(WINDOWPOS* pos);
+	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 };
 
 #endif

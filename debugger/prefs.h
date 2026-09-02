@@ -28,6 +28,8 @@ public:
 
 	std::string img_toolbar;
 
+	int sampleWindowSeconds;
+
 	std::string homeDir;
 	CFont conFont, editFont, tabsFont, debugFont;
 

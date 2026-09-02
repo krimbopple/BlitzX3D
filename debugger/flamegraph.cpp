@@ -187,7 +187,7 @@ void FlameGraphPanel::renderToBackBuffer(CDC& refDC, const CRect& rect) {
 				childWidth = remainingWidth;
 			}
 			else {
-				childWidth = (int)((double)child->samples / (double)totalSamples * totalWidth);
+				childWidth = (int)((double)child->selfSamples / (double)totalSamples * totalWidth);
 				if (childWidth < 1) childWidth = 1;
 				if (childWidth > remainingWidth) childWidth = remainingWidth;
 			}
@@ -262,11 +262,34 @@ void FlameGraphPanel::buildTree() {
 		return;
 	}
 
+	int windowSeconds = profiler->getSampleWindowSeconds();
+	if (windowSeconds > 0 && !samples.empty()) {
+		__int64 mostRecentTime = samples.back().first;
+		__int64 cutoffTime = mostRecentTime - (__int64)windowSeconds * 1000;
+
+		std::vector<std::pair<__int64, std::vector<std::string>>> filtered;
+		filtered.reserve(samples.size());
+		for (const auto& s : samples) {
+			if (s.first >= cutoffTime) {
+				filtered.push_back(s);
+			}
+		}
+		samples.clear();
+		for (const auto& s : filtered) samples.push_back(s);
+		if (samples.empty()) {
+			root.reset();
+			totalSamples = 0;
+			maxDepth = 0;
+			return;
+		}
+	}
+
 	root.reset(new RectNode("root", 0));
 	totalSamples = 0;
 	maxDepth = 0;
 
-	for (const auto& stack : samples) {
+	for (const auto& s : samples) {
+		const auto& stack = s.second;
 		RectNode* current = root.get();
 		int depth = 0;
 		for (const std::string& func : stack) {

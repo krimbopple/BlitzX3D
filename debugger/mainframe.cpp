@@ -26,6 +26,7 @@ BEGIN_MESSAGE_MAP(MainFrame, CFrameWnd)
 	ON_WM_WINDOWPOSCHANGING()
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
+	ON_WM_KEYDOWN()
 
 	ON_COMMAND(ID_STOP, cmdStop)
 	ON_COMMAND(ID_RUN, cmdRun)
@@ -48,6 +49,7 @@ END_MESSAGE_MAP()
 
 #define PROFILER_TIMER_ID 1
 #define PROFILER_TIMER_MS 250
+#define PROFILER_CLEAR_HOTKEY VK_DELETE
 
 MainFrame::MainFrame() :state(STARTING), step_level(-1), cur_pos(0), cur_file(0),
 	last_obj_cnt(0), last_unrel_cnt(0), last_str_cnt(0), last_working_set_bytes(0) {
@@ -499,6 +501,13 @@ void MainFrame::OnTimer(UINT_PTR id) {
 			flame_graph_panel.refresh();
 		}
 	}
+}
+
+void MainFrame::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags) {
+	if (nChar == PROFILER_CLEAR_HOTKEY) {
+		cmdProfileReset();
+	}
+	CFrameWnd::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
 void MainFrame::cmdProfileToggle() {

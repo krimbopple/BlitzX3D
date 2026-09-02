@@ -41,8 +41,9 @@ class Profiler {
 	std::vector<MemSample> memHistory;
 	int lastMemSampleMs;
 	__int64 lastWorkingSetBytes;
-	std::deque<std::vector<std::string>> stackSamples;
+	std::deque<std::pair<__int64, std::vector<std::string>>> stackSamples;
 	int sampleIntervalMs;
+	int sampleWindowSeconds;
 
 public:
 	Profiler();
@@ -86,7 +87,8 @@ public:
 
 	void sampleStack();
 	void clearSamples();
-	const std::deque<std::vector<std::string>>& getStackSamples() const { return stackSamples; }
+	const std::deque<std::pair<__int64, std::vector<std::string>>>& getStackSamples() const { return stackSamples; };
+	int getSampleWindowSeconds() const { return sampleWindowSeconds; }
 };
 
 #endif

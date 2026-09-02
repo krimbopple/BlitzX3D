@@ -74,6 +74,7 @@ class App {
 	void drawSourceTab();
 	void drawTreeNodes(const std::vector<DbgTreeNode>& items);
 	void drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y, float w, float h);
+	int measureFlameDepth(const std::vector<DbgFlameNode>& v, int d, int& maxDepth);
 
 public:
 	App();

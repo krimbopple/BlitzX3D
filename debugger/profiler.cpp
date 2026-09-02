@@ -2,7 +2,7 @@
 #include "profiler.h"
 #include <psapi.h>
 
-Profiler::Profiler() :freq(0), startTicks(0), lastMemSampleMs(0), lastWorkingSetBytes(0), enabled(true) {
+Profiler::Profiler() :freq(0), startTicks(0), lastMemSampleMs(0), lastWorkingSetBytes(0), enabled(true), sampleWindowSeconds(30) {
 	LARGE_INTEGER f;
 	QueryPerformanceFrequency(&f);
 	freq = f.QuadPart;
@@ -84,7 +84,9 @@ void Profiler::sampleStack() {
 	for (const auto& f : stack) {
 		sample.push_back(f.func);
 	}
-	stackSamples.push_back(std::move(sample));
+	__int64 now = nowTicks();
+	__int64 sampleTimeMs = ticksToMs(now - startTicks);
+	stackSamples.push_back(std::make_pair(sampleTimeMs, std::move(sample)));
 
 	const size_t maxStackSamples = 20000;
 	if (stackSamples.size() > maxStackSamples) {

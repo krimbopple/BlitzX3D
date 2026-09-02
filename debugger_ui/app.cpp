@@ -441,7 +441,16 @@ void App::drawProfilerTab() {
 
 	ImGui::TextUnformatted(profilerSummary.c_str());
 
-	if (!ImGui::BeginTable("##proftable", 9,
+	ImGui::TextUnformatted("Samples (seconds):");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(120.0f);
+	static int windowSeconds = 30;
+	if (ImGui::InputInt("##windowsec", &windowSeconds)) {
+		if (windowSeconds < 0) windowSeconds = 0;
+		if (windowSeconds > 300) windowSeconds = 300;
+	}
+
+	if (!ImGui::BeginTable("##proftable", 10,
 		ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
 		ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
 		ImGui::EndChild();
@@ -458,6 +467,7 @@ void App::drawProfilerTab() {
 	ImGui::TableSetupColumn("Max ms", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderWidth, 70.0f);
 	ImGui::TableSetupColumn("Net Objs", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderWidth, 75.0f);
 	ImGui::TableSetupColumn("Net Strs", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderWidth, 75.0f);
+	ImGui::TableSetupColumn("Window s", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderWidth, 60.0f);
 	ImGui::TableHeadersRow();
 
 	double totalSelf = 0;
@@ -493,6 +503,9 @@ void App::drawProfilerTab() {
 		ImGui::TextUnformatted(buf);
 		ImGui::TableSetColumnIndex(8);
 		sprintf(buf, "%+d", r.netStrDelta);
+		ImGui::TextUnformatted(buf);
+		ImGui::TableSetColumnIndex(9);
+		sprintf(buf, "%d", windowSeconds);
 		ImGui::TextUnformatted(buf);
 	}
 
@@ -564,6 +577,22 @@ void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y
 	}
 }
 
+int App::measureFlameDepth(const std::vector<DbgFlameNode>& v, int d, int& maxDepth) {
+	int totalSamples = 0;
+	maxDepth = d;
+	for (const DbgFlameNode& n : v) {
+		totalSamples += n.samples;
+		if (d > maxDepth) maxDepth = d;
+		for (const DbgFlameNode& child : n.children) {
+			int childMax = 0;
+			int childTotal = measureFlameDepth(child.children, d + 1, childMax);
+			totalSamples += childTotal > 0 ? childTotal : 0;
+			if (childMax > maxDepth) maxDepth = childMax;
+		}
+	}
+	return totalSamples;
+}
+
 void App::drawFlameGraphTab() {
 	ImGui::BeginChild("##flamechild");
 
@@ -576,15 +605,7 @@ void App::drawFlameGraphTab() {
 	}
 
 	int maxDepth = 1;
-	int totalSamples = 0;
-	std::function<void(const std::vector<DbgFlameNode>&, int)> measure = [&](const std::vector<DbgFlameNode>& v, int d) {
-		for (const DbgFlameNode& n : v) {
-			totalSamples += n.samples;
-			if (d > maxDepth) maxDepth = d;
-			measure(n.children, d + 1);
-		}
-	};
-	measure(flameNodes, 1);
+	int totalSamples = measureFlameDepth(flameNodes, 1, maxDepth);
 	if (totalSamples <= 0) {
 		ImGui::TextDisabled("No samples collected.");
 		ImGui::EndChild();

@@ -1,6 +1,9 @@
 #include "libs.h"
 #include "../MultiLang/MultiLang.h"
 #include <Windows.h>
+#include <shellapi.h>
+#include <commctrl.h>
+#pragma comment(lib, "Shell32.lib")
 
 int bcc_ver;
 int lnk_ver;
@@ -17,6 +20,58 @@ std::vector<std::string> keyWords;
 std::vector<UserFunc> userFuncs;
 
 static HMODULE linkerHMOD, runtimeHMOD;
+
+static const char* DX9_DOWNLOAD_URL = "https://www.microsoft.com/en-us/download/details.aspx?id=35";
+
+static bool isD3DX943Missing() {
+	HMODULE h = LoadLibraryExA("d3dx9_43.dll", NULL, 0);
+	if (h) {
+		FreeLibrary(h);
+		return false;
+	}
+	return GetLastError() == ERROR_MOD_NOT_FOUND;
+}
+
+static HRESULT CALLBACK DX9TaskDialogCallback(HWND, UINT msg, WPARAM wParam, LPARAM, LONG_PTR) {
+	if (msg == TDN_HYPERLINK_CLICKED && wParam) {
+		ShellExecuteW(NULL, L"open", (LPCWSTR)wParam, NULL, NULL, SW_SHOWNORMAL);
+		return S_OK;
+	}
+	return S_FALSE;
+}
+
+static void showDX9MissingPopup() {
+	HMODULE hComCtl = LoadLibraryW(L"ComCtl32.dll");
+	if (hComCtl) {
+		typedef HRESULT(WINAPI* TaskDialogIndirectFunc)(const TASKDIALOGCONFIG*, int*, int*, BOOL*);
+		TaskDialogIndirectFunc pTDI = (TaskDialogIndirectFunc)GetProcAddress(hComCtl, "TaskDialogIndirect");
+		if (pTDI) {
+			TASKDIALOGCONFIG cfg = { 0 };
+			cfg.cbSize = sizeof(cfg);
+			cfg.hwndParent = NULL;
+			cfg.hInstance = GetModuleHandle(NULL);
+			cfg.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_POSITION_RELATIVE_TO_WINDOW;
+			cfg.dwCommonButtons = TDCBF_OK_BUTTON;
+			cfg.pszWindowTitle = L"Missing DirectX 9 components";
+			cfg.pszMainIcon = TD_ERROR_ICON;
+			cfg.pszMainInstruction = L"d3dx9_43.dll was not found.";
+			cfg.pszContent = L"Blitz3D requires the DirectX 9 (June 2010) runtime.\nDownload the <a href=\"https://www.microsoft.com/en-us/download/details.aspx?id=35\">DirectX End-User Runtime</a> from Microsoft and try again.";
+			cfg.pfCallback = DX9TaskDialogCallback;
+			if (SUCCEEDED(pTDI(&cfg, NULL, NULL, NULL))) {
+				FreeLibrary(hComCtl);
+				return;
+			}
+		}
+		FreeLibrary(hComCtl);
+	}
+	int r = MessageBoxA(0,
+		"d3dx9_43.dll was not found.\n\nBlitz3D requires the DirectX 9 (June 2010) runtime.\nPress Yes to open the download page for the DirectX End-User Runtime.",
+		"Missing DirectX 9 components",
+		MB_YESNO | MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
+	if (r == IDYES) {
+		ShellExecuteA(NULL, "open", DX9_DOWNLOAD_URL, NULL, NULL, SW_SHOWNORMAL);
+	}
+}
 
 static Type* typeof(int c) {
 	switch (c) {
@@ -274,7 +329,13 @@ const char* openLibs() {
 	linkerLib = gl();
 
 	runtimeHMOD = LoadLibrary((home + "/bin/runtime.dll").c_str());
-	if (!runtimeHMOD) return MultiLang::unable_open_runtime_dll;
+	if (!runtimeHMOD) {
+		if (isD3DX943Missing()) {
+			showDX9MissingPopup();
+			return "Unable to open runtime.dll (d3dx9_43.dll is missing). Blitz3D requires the DirectX 9 (June 2010) runtime - install the DirectX End-User Runtime: https://www.microsoft.com/en-us/download/details.aspx?id=35";
+		}
+		return MultiLang::unable_open_runtime_dll;
+	}
 
 	typedef Runtime* (_cdecl* GetRuntime)();
 	GetRuntime gr = (GetRuntime)GetProcAddress(runtimeHMOD, "runtimeGetRuntime");

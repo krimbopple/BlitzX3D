@@ -473,7 +473,6 @@ static void link() {
 extern "C" _declspec(dllexport) int _stdcall bbWinMain();
 extern "C" BOOL _stdcall _DllMainCRTStartup(HANDLE, DWORD, LPVOID);
 
-#include <delayimp.h>
 
 static const char* DX9_DOWNLOAD_URL = "https://www.microsoft.com/en-us/download/details.aspx?id=35";
 
@@ -531,15 +530,6 @@ static void showDX9MissingAndExit() {
 	showDX9MissingPopup();
 	ExitProcess(-1);
 }
-
-static FARPROC WINAPI DX9DliFailureHook(unsigned dliNotify, PDelayLoadInfo pdli) {
-	if (dliNotify == dliFailLoadLib && pdli && pdli->szDll &&
-		_stricmp(pdli->szDll, "d3dx9_43.dll") == 0) {
-		showDX9MissingAndExit();
-	}
-	return NULL;
-}
-extern "C" PfnDliHook __pfnDliFailureHook2 = DX9DliFailureHook;
 
 bool WINAPI DllMain(HANDLE module, DWORD reason, void* reserved) {
 	return TRUE;

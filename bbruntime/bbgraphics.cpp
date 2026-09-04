@@ -165,6 +165,10 @@ static gxCanvas* p_canvas;
 static int fps_cap_ms = 0;
 static int last_flip_ms = 0;
 
+static int fps_frame_count = 0;
+static int fps_window_start = 0;
+static int fps_value = 0;
+
 static gxFont* curr_font;
 static unsigned curr_color;
 static unsigned curr_clsColor;
@@ -975,7 +979,27 @@ void bbFlip(int vwait)
     }
     gx_graphics->flip(vwait ? true : false);
     if (!gx_runtime->idle()) RTEX(0);
-    last_flip_ms = gx_runtime->getMilliSecs();
+    int now_ms = gx_runtime->getMilliSecs();
+    last_flip_ms = now_ms;
+    if (fps_window_start == 0) {
+        fps_window_start = now_ms;
+        fps_frame_count = 0;
+        fps_value = 0;
+    }
+    ++fps_frame_count;
+    int window_ms = now_ms - fps_window_start;
+    if (window_ms >= 500 && window_ms > 0) {
+        fps_value = (int)(fps_frame_count * 1000 / window_ms);
+        fps_frame_count = 0;
+        fps_window_start = now_ms;
+    }
+}
+
+int bbGetFPS()
+{
+    if (!gx_runtime || !gx_graphics || fps_window_start == 0) return 0;
+    if (gx_runtime->getMilliSecs() - last_flip_ms > 1000) return 0;
+    return fps_value;
 }
 
 void bbCapFPS(int fps)
@@ -2356,6 +2380,7 @@ void graphics_link(void (*rtSym)(const char* sym, void* pc))
     rtSym("%ScanLine", bbScanLine);
     rtSym("VWait%frames=1", bbVWait);
     rtSym("Flip%vwait=1", bbFlip);
+    rtSym("%GetFPS", bbGetFPS);
     rtSym("CapFPS%fps", bbCapFPS);
     rtSym("UncapFPS", bbUncapFPS);
     rtSym("%GraphicsWidth", bbGraphicsWidth);

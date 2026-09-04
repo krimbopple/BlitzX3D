@@ -45,6 +45,7 @@ int		 bbGraphicsLost();
 int		 bbScanLine();
 void	 bbVWait(int n);
 void	 bbFlip(int vwait);
+int		 bbGetFPS();
 
 //graphics buffer functions
 void	 bbSetBuffer(gxCanvas* buff);

@@ -1126,8 +1126,9 @@ void bbText(int x, int y, BBStr* str, int xPos, int yPos)
 {
     if (xPos == 2) x -= curr_font->getWidth(*str);
     if (xPos == 1) x -= curr_font->getWidth(*str) / 2;
-    if (yPos == 2) y -= curr_font->getHeight();
-    if (yPos == 1) y -= curr_font->getHeight() / 2;
+    int fullH = curr_font->getHeight() + curr_font->getRenderOffset();
+    if (yPos == 2) y -= fullH;
+    if (yPos == 1) y -= fullH / 2;
     gx_canvas->text(x, y, *str);
     delete str;
 }
@@ -2140,7 +2141,7 @@ void bbPrint(BBStr* str)
     gxCanvas* c = startPrinting();
     c->text(curs_x, curs_y, *str);
     curs_x = 0;
-    curs_y += curr_font->getHeight() + 3; //avoid multiline overlapping by adding 3 to the font height
+    curs_y += curr_font->getHeight() + curr_font->getRenderOffset() + 3; //avoid multiline overlapping by adding 3 to the font height
     endPrinting(c);
     delete str;
 }

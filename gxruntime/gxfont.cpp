@@ -9,6 +9,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <cmath>
+#include <algorithm>
 #include <freetype/ftsynth.h>
 
 gxFont::gxFont(FT_Library ftLibrary, gxGraphics* gfx, const std::string& fn, int h, bool bold, bool italic, bool underlined) {
@@ -34,19 +36,38 @@ gxFont::gxFont(FT_Library ftLibrary, gxGraphics* gfx, const std::string& fn, int
 	glyphData.clear();
 	atlases.clear();
 
-	glyphHeight = height;
-	renderAtlas('T');
-	std::unordered_map<int, GlyphData>::iterator it = glyphData.find('T');
-	if(it != glyphData.end()) {
-		const GlyphData& gd = it->second;
+	{
+		FT_Size_Metrics& m = freeTypeFace->size->metrics;
+		int ascentPx = (int)((m.ascender + 63) / 64);
+		int descentPx = (int)((-m.descender + 63) / 64);
+		if (ascentPx < 1) ascentPx = 1;
+		if (descentPx < 0) descentPx = 0;
+		int linePx = (int)((m.height + 63) / 64);
+		if (linePx < 1) linePx = 1;
 
-		glyphHeight = gd.srcRect[3];
-		glyphRenderOffset = -gd.drawOffset[1];
+		int padTop = (bold ? 1 : 0) + 1;
+		int padBottom = (bold ? 1 : 0) + 1;
+		if (italic) { padTop += 1; padBottom += 1; }
+
+		int ascent = ascentPx + padTop;
+		int descent = descentPx + padBottom;
+
+		if (underlined) {
+			float upos = -static_cast<float>(FT_MulFix(freeTypeFace->underline_position, m.y_scale)) / 64.0F;
+			float uthick = std::max(1.0F, static_cast<float>(FT_MulFix(freeTypeFace->underline_thickness, m.y_scale)) / 64.0F);
+			int underlineBottom = (int)std::ceil(upos + uthick);
+			if (underlineBottom > descent) descent = underlineBottom + 1;
+		}
+
+		int lineHeight = linePx + padTop + padBottom;
+		int extents = ascent + descent;
+		if (extents > lineHeight) lineHeight = extents;
+
+		glyphHeight = lineHeight;
+		glyphRenderBaseline = ascent;
+		glyphRenderOffset = 0;
+		tCanvasHeight = glyphHeight;
 	}
-
-	tCanvasHeight = (glyphHeight * 40) / 10;
-	glyphRenderBaseline = (glyphHeight * 3 / 10);
-	glyphRenderOffset += glyphRenderBaseline;
 
 	tempCanvas = nullptr;
 }
@@ -129,7 +150,7 @@ void gxFont::renderAtlas(int chr) {
 					gd.atlasIndex = (int)atlases.size();
 					gd.horizontalAdvance = freeTypeFace->glyph->metrics.horiAdvance >> 6;
 					gd.drawOffset[0] = -freeTypeFace->glyph->bitmap_left;
-					gd.drawOffset[1] = freeTypeFace->glyph->bitmap_top - ((height * 10) / 14);
+					gd.drawOffset[1] = freeTypeFace->glyph->bitmap_top;
 					gd.srcRect[0] = x;
 					gd.srcRect[1] = y;
 					gd.srcRect[2] = glyphWidth;

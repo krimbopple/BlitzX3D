@@ -230,10 +230,7 @@ void gxFont::render(gxCanvas* dest, unsigned color_argb, int x, int y, const std
 		int width = stringWidth(text);
 		int uy = baselineY + static_cast<int>(getUnderlinePosition());
 		int uh = max(1, static_cast<int>(getUnderlineThickness()));
-		unsigned savedColor = dest->getColor();
-		dest->setColor(color_argb);
-		dest->rect(x, uy, width, uh, true);
-		dest->setColor(savedColor);
+		dest->rectBlend(x, uy, width, uh, color_argb);
 	}
 }
 

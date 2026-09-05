@@ -131,6 +131,7 @@ public:
 	void plot(int x, int y);
 	void line(int x, int y, int x2, int y2);
 	void rect(int x, int y, int w, int h, bool solid);
+	void rectBlend(int x, int y, int w, int h, unsigned argb);
 	void oval(int x, int y, int w, int h, bool solid);
 	void text(int x, int y, const std::string& t);
 	void blit(int x, int y, gxCanvas* src, int src_x, int src_y, int src_w, int src_h, bool solid);

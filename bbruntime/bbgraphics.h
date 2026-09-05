@@ -81,6 +81,7 @@ void	 bbGetColor(int x, int y);
 int		 bbColorRed();
 int		 bbColorGreen();
 int		 bbColorBlue();
+int		 bbColorAlpha();
 void bbSet2DEffect(gxEffect* effect);
 void bbClear2DEffect();
 gxEffect* bbGet2DEffect();

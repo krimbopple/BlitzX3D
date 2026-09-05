@@ -1068,6 +1068,11 @@ int bbColorBlue()
     return gx_canvas->getColor() & 0xff;
 }
 
+int bbColorAlpha()
+{
+    return (curr_color >> 24) & 0xff;
+}
+
 void bbSet2DEffect(gxEffect* effect) {
     if (!gx_canvas) return;
     gx_canvas->set2DEffect(effect);
@@ -2416,6 +2421,7 @@ void graphics_link(void (*rtSym)(const char* sym, void* pc))
     rtSym("%ColorRed", bbColorRed);
     rtSym("%ColorGreen", bbColorGreen);
     rtSym("%ColorBlue", bbColorBlue);
+    rtSym("%ColorAlpha", bbColorAlpha);
     rtSym("ClsColor%red%green%blue%alpha=255", bbClsColor);
     rtSym("SetFont%font", bbSetFont);
     rtSym("Cls", bbCls);

@@ -523,7 +523,9 @@ void gxCanvas::line(int x0, int y0, int x1, int y1) {
     unlock();
 }
 
-void gxCanvas::rect(int x, int y, int w, int h, bool solid) {
+static bool isRenderTarget(IDirect3DSurface9* s);
+
+void gxCanvas::rect(int x, int y, int w, int h, bool solid) {    
     x += origin_x; y += origin_y;
     Rect dest(x, y, w, h);
     if (!clip(&dest)) return;
@@ -538,6 +540,101 @@ void gxCanvas::rect(int x, int y, int w, int h, bool solid) {
     Rect r3(x + w - 1, y, 1, h);   if (clip(&r3)) fillRect(r3, argb);
     Rect r4(x, y + h - 1, w, 1);   if (clip(&r4)) fillRect(r4, argb);
     damage(dest);
+}
+
+void gxCanvas::rectBlend(int x, int y, int w, int h, unsigned argb) {
+    unsigned tintA = (argb >> 24) & 0xff;
+    if (tintA == 255) { rect(x, y, w, h, true); return; }
+    if (tintA == 0 || w <= 0 || h <= 0) return;
+    x += origin_x; y += origin_y;
+    Rect dest_r(x, y, w, h);
+    if (!clip(&dest_r)) return;
+
+    IDirect3DDevice9* dev = graphics ? graphics->dir3dDev : nullptr;
+    if (!isRenderTarget(surf) || !dev) {
+        if (!lock()) return;
+        unsigned sR = (argb >> 16) & 0xff, sG = (argb >> 8) & 0xff, sB = argb & 0xff;
+        unsigned invA = 255 - tintA;
+        const PixelFormat& df = format;
+        for (int yy = dest_r.top; yy < dest_r.bottom; ++yy) {
+            for (int xx = dest_r.left; xx < dest_r.right; ++xx) {
+                unsigned dstArgb = df.toARGB(getPixelFast(xx, yy));
+                unsigned outR = (sR * tintA + ((dstArgb >> 16) & 0xff) * invA) / 255;
+                unsigned outG = (sG * tintA + ((dstArgb >> 8) & 0xff) * invA) / 255;
+                unsigned outB = (sB * tintA + (dstArgb & 0xff) * invA) / 255;
+                unsigned outA = tintA + ((dstArgb >> 24) & 0xff) * invA / 255;
+                setPixelFast(xx, yy, df.fromARGB((outA << 24) | (outR << 16) | (outG << 8) | outB));
+            }
+        }
+        unlock();
+        damage(dest_r);
+        return;
+    }
+
+    bool ownBatch = !blit_batch_active;
+    if (ownBatch) beginBlitBatch();
+    if (!blit_batch_active) {
+        if (ownBatch) endBlitBatch();
+        rect(x - origin_x, y - origin_y, w, h, true);
+        return;
+    }
+
+    IDirect3DBaseTexture9* oldTex = nullptr;
+    DWORD oldFVF = 0, oldCOp, oldCArg1, oldAOp, oldAArg1;
+    DWORD oldAB, oldSB, oldDB, oldAT, oldLight, oldZ;
+    dev->GetTexture(0, &oldTex);
+    dev->GetFVF(&oldFVF);
+    dev->GetTextureStageState(0, D3DTSS_COLOROP, &oldCOp);
+    dev->GetTextureStageState(0, D3DTSS_COLORARG1, &oldCArg1);
+    dev->GetTextureStageState(0, D3DTSS_ALPHAOP, &oldAOp);
+    dev->GetTextureStageState(0, D3DTSS_ALPHAARG1, &oldAArg1);
+    dev->GetRenderState(D3DRS_ALPHABLENDENABLE, &oldAB);
+    dev->GetRenderState(D3DRS_SRCBLEND, &oldSB);
+    dev->GetRenderState(D3DRS_DESTBLEND, &oldDB);
+    dev->GetRenderState(D3DRS_ALPHATESTENABLE, &oldAT);
+    dev->GetRenderState(D3DRS_LIGHTING, &oldLight);
+    dev->GetRenderState(D3DRS_ZENABLE, &oldZ);
+
+    dev->SetTexture(0, nullptr);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+    dev->SetRenderState(D3DRS_ZENABLE, FALSE);
+    dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+    dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+    dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+    dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+    dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+
+    struct DiffVert { float x, y, z, rhw; DWORD color; };
+    float x0 = (float)dest_r.left - 0.5f, y0 = (float)dest_r.top - 0.5f;
+    float x1 = (float)dest_r.right - 0.5f, y1 = (float)dest_r.bottom - 0.5f;
+    DiffVert verts[4] = {
+        { x0, y0, 0.0f, 1.0f, argb },
+        { x1, y0, 0.0f, 1.0f, argb },
+        { x0, y1, 0.0f, 1.0f, argb },
+        { x1, y1, 0.0f, 1.0f, argb }
+    };
+    dev->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
+    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, verts, sizeof(DiffVert));
+
+    dev->SetTexture(0, oldTex);
+    if (oldTex) oldTex->Release();
+    dev->SetFVF(oldFVF);
+    dev->SetTextureStageState(0, D3DTSS_COLOROP, oldCOp);
+    dev->SetTextureStageState(0, D3DTSS_COLORARG1, oldCArg1);
+    dev->SetTextureStageState(0, D3DTSS_ALPHAOP, oldAOp);
+    dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, oldAArg1);
+    dev->SetRenderState(D3DRS_ALPHABLENDENABLE, oldAB);
+    dev->SetRenderState(D3DRS_SRCBLEND, oldSB);
+    dev->SetRenderState(D3DRS_DESTBLEND, oldDB);
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, oldAT);
+    dev->SetRenderState(D3DRS_LIGHTING, oldLight);
+    dev->SetRenderState(D3DRS_ZENABLE, oldZ);
+
+    damage(dest_r);
+    if (ownBatch) endBlitBatch();
 }
 
 void gxCanvas::oval(int x1, int y1, int w, int h, bool solid) {
@@ -1254,8 +1351,9 @@ void gxCanvas::blitAlpha(int x, int y, gxCanvas* src,
         dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
         dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_TFACTOR);
 
-        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
         dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+        dev->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_TFACTOR);
 
         if (filter) {
             dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
@@ -1292,7 +1390,7 @@ void gxCanvas::text(int x, int y, const std::string& t) {
     }
     if (e > b) {
         beginBlitBatch();
-        font->render(this, format.toARGB(color_surf), x, y, t.substr(b, e - b));
+        font->render(this, color_argb, x, y, t.substr(b, e - b));
         endBlitBatch();
     }
 }

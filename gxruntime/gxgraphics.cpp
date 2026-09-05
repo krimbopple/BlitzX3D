@@ -162,13 +162,19 @@ bool gxGraphics::restore() {
 	if (hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICEHUNG || hr == D3DERR_DEVICEREMOVED) return false;
 
 	if (hr == D3DERR_DEVICENOTRESET || hr == S_PRESENT_MODE_CHANGED) {
-		if (present_params.Windowed) {
+		if (present_params.Windowed && !runtime->antialiasRequested()) {
 			present_params.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
 		}
 
 		runtime->applyAntialiasToParams(present_params);
 
 		hr = dir3dDev->ResetEx(&present_params, present_params.Windowed ? nullptr : &runtime->d3ddmEx);
+		if (FAILED(hr) && present_params.MultiSampleType != D3DMULTISAMPLE_NONE) {
+			present_params.MultiSampleType = D3DMULTISAMPLE_NONE;
+			present_params.MultiSampleQuality = 0;
+			present_params.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+			hr = dir3dDev->ResetEx(&present_params, present_params.Windowed ? nullptr : &runtime->d3ddmEx);
+		}
 		if (FAILED(hr)) return false;
 
 		IDirect3DSurface9* newBack = nullptr;
@@ -281,6 +287,12 @@ bool gxGraphics::changeDisplayMode(int width, int height, bool fullscreen, bool 
 	runtime->applyAntialiasToParams(present_params);
 
 	HRESULT hr = dir3dDev->ResetEx(&present_params, fullscreen ? &runtime->d3ddmEx : nullptr);
+	if (FAILED(hr) && present_params.MultiSampleType != D3DMULTISAMPLE_NONE) {
+		present_params.MultiSampleType = D3DMULTISAMPLE_NONE;
+		present_params.MultiSampleQuality = 0;
+		present_params.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+		hr = dir3dDev->ResetEx(&present_params, fullscreen ? &runtime->d3ddmEx : nullptr);
+	}
 	if (FAILED(hr)) {
 		char buf[256];
 		sprintf(buf, "ResetEx failed: 0x%08X", hr);

@@ -340,11 +340,18 @@ void gxRuntime::paint() {
 		IDirect3DSurface9* canvasSurf = f->getSurface();
 		if (!canvasSurf) break;
 
-		D3DSURFACE_DESC desc;
-		canvasSurf->GetDesc(&desc);
-		POINT pt = { 0, 0 };
-		RECT full = { 0, 0, (LONG)desc.Width, (LONG)desc.Height };
-		d3dDevice->UpdateSurface(canvasSurf, &full, backBuffer, &pt);
+		if (canvasSurf != backBuffer) {
+			D3DSURFACE_DESC srcDesc, dstDesc;
+			bool canUpdate = SUCCEEDED(canvasSurf->GetDesc(&srcDesc)) &&
+				SUCCEEDED(backBuffer->GetDesc(&dstDesc)) &&
+				srcDesc.MultiSampleType == D3DMULTISAMPLE_NONE &&
+				dstDesc.MultiSampleType == D3DMULTISAMPLE_NONE;
+			if (canUpdate) {
+				POINT pt = { 0, 0 };
+				RECT full = { 0, 0, (LONG)srcDesc.Width, (LONG)srcDesc.Height };
+				d3dDevice->UpdateSurface(canvasSurf, &full, backBuffer, &pt);
+			}
+		}
 
 		HRESULT hr = d3dDevice->Present(NULL, NULL, NULL, NULL);
 		if (hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICEHUNG || hr == D3DERR_DEVICEREMOVED) {
@@ -359,14 +366,23 @@ void gxRuntime::paint() {
 		IDirect3DSurface9* canvasSurf = f->getSurface();
 		if (!canvasSurf) break;
 
-		RECT src, dest;
-		GetClientRect(hwnd, &dest);
-		src.left = src.top = 0;
-		src.right = dest.right - dest.left;
-		src.bottom = dest.bottom - dest.top;
+		if (canvasSurf != backBuffer) {
+			D3DSURFACE_DESC srcDesc, dstDesc;
+			bool canUpdate = SUCCEEDED(canvasSurf->GetDesc(&srcDesc)) &&
+				SUCCEEDED(backBuffer->GetDesc(&dstDesc)) &&
+				srcDesc.MultiSampleType == D3DMULTISAMPLE_NONE &&
+				dstDesc.MultiSampleType == D3DMULTISAMPLE_NONE;
+			if (canUpdate) {
+				RECT src, dest;
+				GetClientRect(hwnd, &dest);
+				src.left = src.top = 0;
+				src.right = dest.right - dest.left;
+				src.bottom = dest.bottom - dest.top;
 
-		POINT pt = { dest.left, dest.top };
-		d3dDevice->UpdateSurface(canvasSurf, &src, backBuffer, &pt);
+				POINT pt = { dest.left, dest.top };
+				d3dDevice->UpdateSurface(canvasSurf, &src, backBuffer, &pt);
+			}
+		}
 
 		HRESULT hr = d3dDevice->Present(NULL, NULL, NULL, NULL);
 		if (hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICEHUNG || hr == D3DERR_DEVICEREMOVED) {
@@ -954,18 +970,20 @@ void gxRuntime::applyAntialiasToParams(D3DPRESENT_PARAMETERS& pp) {
 
 	if (!requested_antialias) return;
 
-	if (pp.Windowed) return;
+	pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
 
 	D3DFORMAT fmt = pp.BackBufferFormat;
 	if (fmt == D3DFMT_UNKNOWN) fmt = D3DFMT_X8R8G8B8;
 
+	BOOL windowed = pp.Windowed ? TRUE : FALSE;
+
 	D3DMULTISAMPLE_TYPE type = D3DMULTISAMPLE_4_SAMPLES;
 	DWORD quality = 0;
-	HRESULT hr = d3d->CheckDeviceMultiSampleType(curr_driver->adapter, D3DDEVTYPE_HAL, fmt, FALSE, type, &quality);
+	HRESULT hr = d3d->CheckDeviceMultiSampleType(curr_driver->adapter, D3DDEVTYPE_HAL, fmt, windowed, type, &quality);
 	if (FAILED(hr) || quality == 0) {
 		type = D3DMULTISAMPLE_2_SAMPLES;
 		quality = 0;
-		hr = d3d->CheckDeviceMultiSampleType(curr_driver->adapter, D3DDEVTYPE_HAL, fmt, FALSE, type, &quality);
+		hr = d3d->CheckDeviceMultiSampleType(curr_driver->adapter, D3DDEVTYPE_HAL, fmt, windowed, type, &quality);
 		if (FAILED(hr) || quality == 0) return;
 	}
 
@@ -995,7 +1013,17 @@ gxGraphics* gxRuntime::openWindowedGraphics(int w, int h, int d, bool d3d) {
 	applyAntialiasToParams(d3dpp);
 
 	DWORD vp_flag = pickVertexProcessingFlag(this->d3d, curr_driver->adapter);
-	if (FAILED(this->d3d->CreateDeviceEx(curr_driver->adapter, D3DDEVTYPE_HAL, hwnd, vp_flag, &d3dpp, nullptr, &d3dDevice))) return 0;
+	if (FAILED(this->d3d->CreateDeviceEx(curr_driver->adapter, D3DDEVTYPE_HAL, hwnd, vp_flag, &d3dpp, nullptr, &d3dDevice))) {
+		if (d3dpp.MultiSampleType != D3DMULTISAMPLE_NONE) {
+			d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
+			d3dpp.MultiSampleQuality = 0;
+			d3dpp.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+			if (FAILED(this->d3d->CreateDeviceEx(curr_driver->adapter, D3DDEVTYPE_HAL, hwnd, vp_flag, &d3dpp, nullptr, &d3dDevice))) return 0;
+		}
+		else {
+			return 0;
+		}
+	}
 
 	if (FAILED(d3dDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer))) {
 		d3dDevice->Release(); d3dDevice = 0;
@@ -1056,7 +1084,17 @@ gxGraphics* gxRuntime::openExclusiveGraphics(int w, int h, int d, bool d3d) {
 
 	DWORD vp_flag = pickVertexProcessingFlag(this->d3d, curr_driver->adapter);
 	if (FAILED(this->d3d->CreateDeviceEx(curr_driver->adapter, D3DDEVTYPE_HAL, hwnd, vp_flag, &d3dpp, &d3ddmEx, &d3dDevice))) {
-		return 0;
+		if (d3dpp.MultiSampleType != D3DMULTISAMPLE_NONE) {
+			d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
+			d3dpp.MultiSampleQuality = 0;
+			d3dpp.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+			if (FAILED(this->d3d->CreateDeviceEx(curr_driver->adapter, D3DDEVTYPE_HAL, hwnd, vp_flag, &d3dpp, &d3ddmEx, &d3dDevice))) {
+				return 0;
+			}
+		}
+		else {
+			return 0;
+		}
 	}
 
 	if (FAILED(d3dDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer))) {

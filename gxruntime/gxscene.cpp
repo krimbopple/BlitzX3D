@@ -190,6 +190,7 @@ gxScene::gxScene(gxGraphics* g, gxCanvas* t) :
 	wbuffer = can_wb;
 	dither = false; setDither(true);
 	antialias = false;
+	setRS(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
 	wireframe = true; setWireframe(false);
 	flipped = true; setFlippedTris(false);
 	ambient = ~0; setAmbient(GRAY);
@@ -472,6 +473,9 @@ void gxScene::setAntialias(bool n) {
 	antialias = n;
 	if (graphics && graphics->runtime) {
 		graphics->runtime->setAntialiasRequest(n);
+	}
+	if (dir3dDev) {
+		setRS(D3DRS_MULTISAMPLEANTIALIAS, n ? TRUE : FALSE);
 	}
 }
 
@@ -800,6 +804,7 @@ bool gxScene::begin(const std::vector<gxLight*>& lights) {
 	dir3dDev->Clear(0, NULL, D3DCLEAR_ZBUFFER, 0, 1.0f, 0);
 
 	setRS(D3DRS_FILLMODE, wireframe ? D3DFILL_WIREFRAME : D3DFILL_SOLID);
+	setRS(D3DRS_MULTISAMPLEANTIALIAS, antialias ? TRUE : FALSE);
 
 	return true;
 }

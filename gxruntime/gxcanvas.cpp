@@ -881,7 +881,7 @@ struct SavedBlitState {
     DWORD oldZ, oldAlphaTest, oldAlphaFunc, oldAlphaRef, oldAlphaBlend;
     DWORD oldSrcBlend, oldDestBlend;
     DWORD oldLighting, oldTextureFactor;
-    DWORD oldCOp, oldCArg1, oldCArg2, oldAOp, oldAArg1, oldMag, oldMin, oldLodBias;
+    DWORD oldCOp, oldCArg1, oldCArg2, oldAOp, oldAArg1, oldAArg2, oldMag, oldMin, oldLodBias;
 };
 
 static void saveBlitState(IDirect3DDevice9* dev, SavedBlitState& s) {
@@ -903,6 +903,7 @@ static void saveBlitState(IDirect3DDevice9* dev, SavedBlitState& s) {
     dev->GetTextureStageState(0, D3DTSS_COLORARG2, &s.oldCArg2);
     dev->GetTextureStageState(0, D3DTSS_ALPHAOP, &s.oldAOp);
     dev->GetTextureStageState(0, D3DTSS_ALPHAARG1, &s.oldAArg1);
+    dev->GetTextureStageState(0, D3DTSS_ALPHAARG2, &s.oldAArg2);
     dev->GetSamplerState(0, D3DSAMP_MAGFILTER, &s.oldMag);
     dev->GetSamplerState(0, D3DSAMP_MINFILTER, &s.oldMin);
     dev->GetSamplerState(0, D3DSAMP_MIPMAPLODBIAS, &s.oldLodBias);
@@ -928,6 +929,7 @@ static void restoreBlitState(IDirect3DDevice9* dev, SavedBlitState& s) {
     dev->SetTextureStageState(0, D3DTSS_COLORARG2, s.oldCArg2);
     dev->SetTextureStageState(0, D3DTSS_ALPHAOP, s.oldAOp);
     dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, s.oldAArg1);
+    dev->SetTextureStageState(0, D3DTSS_ALPHAARG2, s.oldAArg2);
     dev->SetSamplerState(0, D3DSAMP_MAGFILTER, s.oldMag);
     dev->SetSamplerState(0, D3DSAMP_MINFILTER, s.oldMin);
     dev->SetSamplerState(0, D3DSAMP_MIPMAPLODBIAS, s.oldLodBias);

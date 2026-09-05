@@ -1,6 +1,7 @@
 #include "libs.h"
 
 #include <iostream>
+#include <windows.h>
 
 #include "../config/config.h"
 #include "../stdutil/stdutil.h"
@@ -58,6 +59,32 @@ static void showHelp() {
 static void err(const std::string& t) {
 	std::cout << t << std::endl;
 	exit(-1);
+}
+
+static void deploySidecarDlls(const std::string& out_file, bool quiet, bool veryquiet) {
+	static const char* dlls[] = { "bass.dll", "FreeImage.dll" };
+
+	size_t n = out_file.find_last_of("/\\");
+	std::string dir = (n == std::string::npos) ? "" : out_file.substr(0, n);
+	if (dir.empty()) dir = ".";
+	char sep = (out_file.find('\\') != std::string::npos) ? '\\' : '/';
+
+	for (const char* name : dlls) {
+		std::string dest = dir + sep + name;
+		std::string src = home + "/bin/" + name;
+		if (CopyFileA(src.c_str(), dest.c_str(), TRUE)) {
+			if (!veryquiet) std::cout << "Copied \"" << name << "\" to \"" << dest << "\"" << std::endl;
+		}
+		else {
+			DWORD e = GetLastError();
+			if (e == ERROR_FILE_EXISTS) {
+				if (!quiet && !veryquiet) std::cout << "\"" << name << "\" already present, skipping." << std::endl;
+			}
+			else {
+				std::cout << "Warning: could not copy \"" << src << "\" to \"" << dest << "\" (error " << e << ")." << std::endl;
+			}
+		}
+	}
 }
 
 static void usageErr() {
@@ -298,6 +325,8 @@ int _cdecl main(int argc, char* argv[]) {
 		if (!module->createExe(out_file.c_str(), (home + "/bin/runtime.dll").c_str(), nolaa)) {
 			err("Error creating executable!");
 		}
+
+		deploySidecarDlls(out_file, quiet, veryquiet);
 
 		if (!veryquiet) std::cout << "Executable created succesfully." << std::endl;
 	}

@@ -399,9 +399,9 @@ void App::frame() {
 	ImGuiIO& kio = ImGui::GetIO();
 	bool ctrl = kio.KeyCtrl;
 	bool shift = kio.KeyShift;
-	if (!kio.WantTextInput && ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) editFind();
-	if (!kio.WantTextInput && ctrl && ImGui::IsKeyPressed(ImGuiKey_H)) editReplace();
-	if (!kio.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F3)) editFindNext(shift);
+	if (ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) editFind();
+	if (ctrl && ImGui::IsKeyPressed(ImGuiKey_H)) editReplace();
+	if (ImGui::IsKeyPressed(ImGuiKey_F3)) editFindNext(shift);
 	if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) { if (currentIndex >= 0) fileSave(currentIndex); }
 	if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N)) fileNew();
 	if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O)) fileOpen();
@@ -887,7 +887,7 @@ void App::drawOutput() {
 
 void App::drawFindReplace() {
 	if (!showFind && !showReplace) return;
-	int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
+	int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking;
 	ImGui::SetNextWindowPos(ImVec2(windowW / 2.0f - 200, 40), ImGuiCond_Appearing);
 	if (ImGui::Begin("Find / Replace", &showFind, flags)) {
 		ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -901,6 +901,7 @@ void App::drawFindReplace() {
 			focusFind = !findFocusReplace;
 			focusReplace = findFocusReplace;
 			findFocusReplace = false;
+			ImGui::SetWindowFocus();
 		}
 		ImGui::SetNextItemWidth(300);
 		if (focusFind) ImGui::SetKeyboardFocusHere();
@@ -959,7 +960,9 @@ void App::drawFindReplace() {
 			}
 		}
 		if (!findStatus.empty()) {
+			ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 380.0f);
 			ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "%s", findStatus.c_str());
+			ImGui::PopTextWrapPos();
 		}
 	}
 	ImGui::End();
@@ -1512,6 +1515,7 @@ void App::editFindNext(bool aBackwards) {
 			d.editor.SetCursorPosition(TextEditor::Coordinates(row, endColumn));
 			d.editor.SetSelection(TextEditor::Coordinates(row, startColumn),
 				TextEditor::Coordinates(row, endColumn));
+			d.editor.EnsureCursorVisible();
 			return true;
 		}
 		return false;
@@ -1541,6 +1545,7 @@ void App::editFindNext(bool aBackwards) {
 			d.editor.SetCursorPosition(TextEditor::Coordinates(row, endColumn));
 			d.editor.SetSelection(TextEditor::Coordinates(row, startColumn),
 				TextEditor::Coordinates(row, endColumn));
+			d.editor.EnsureCursorVisible();
 			return true;
 		}
 		return false;
@@ -1598,6 +1603,7 @@ void App::editFindNext(bool aBackwards) {
 		}
 	}
 	findStatus = "Failed to find text in \"" + findStr + "\"";
+	showFind = true;
 }
 
 void App::programExecute() { build(true, false); }

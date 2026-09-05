@@ -250,6 +250,7 @@ public:
 	inline bool IsAutocompleteEnabled() const { return mAutocompleteEnabled; }
 
 	void RequestWindowFocus() { mRequestFocus = true; }
+	void EnsureCursorVisible();
 
 	void InsertText(const std::string& aValue);
 	void InsertText(const char* aValue);
@@ -339,7 +340,6 @@ private:
 	void ColorizeRange(int aFromLine = 0, int aToLine = 0);
 	void ColorizeInternal();
 	float TextDistanceToLineStart(const Coordinates& aFrom) const;
-	void EnsureCursorVisible();
 	int GetPageSize() const;
 	std::string GetText(const Coordinates& aStart, const Coordinates& aEnd) const;
 	Coordinates GetActualCursorCoordinates() const;
@@ -434,6 +434,7 @@ private:
 	bool mAutocompleteRequested = false;
 	bool mAutocompleteDismissed = false;
 	bool mAutocompleteModified = false;
+	bool mAutocompleteExplicitSelect = false;
 	int mAutocompleteIndex = 0;
 	int mAutocompleteScroll = 0;
 	Coordinates mAutocompleteWordStart;

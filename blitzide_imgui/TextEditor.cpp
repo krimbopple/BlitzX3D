@@ -699,6 +699,7 @@ void TextEditor::CloseAutocomplete()
 {
 	mAutocompleteActive = false;
 	mAutocompleteModified = false;
+	mAutocompleteExplicitSelect = false;
 	mAutocompleteMatches.clear();
 	mAutocompleteIndex = 0;
 	mAutocompleteScroll = 0;
@@ -881,6 +882,7 @@ void TextEditor::UpdateAutocomplete()
 	{
 		mAutocompleteIndex = 0;
 		mAutocompleteScroll = 0;
+		mAutocompleteExplicitSelect = false;
 	}
 	else if (mAutocompleteIndex >= (int)ranked.size())
 		mAutocompleteIndex = (int)ranked.size() - 1;
@@ -982,6 +984,7 @@ void TextEditor::RenderAutocomplete()
 		{
 			hovered = idx;
 			mAutocompleteIndex = idx;
+			mAutocompleteExplicitSelect = true;
 		}
 
 		if (idx == mAutocompleteIndex)
@@ -1029,6 +1032,7 @@ void TextEditor::HandleKeyboardInputs()
 					int s = std::min(mAutocompleteScroll, mAutocompleteIndex);
 					s = std::max(s, mAutocompleteIndex - kAutocompleteMaxVisible + 1);
 					mAutocompleteScroll = std::max(0, s);
+					mAutocompleteExplicitSelect = true;
 				}
 			}
 			else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
@@ -1045,11 +1049,20 @@ void TextEditor::HandleKeyboardInputs()
 					int s = std::max(mAutocompleteScroll, mAutocompleteIndex - kAutocompleteMaxVisible + 1);
 					s = std::min(s, mAutocompleteIndex);
 					mAutocompleteScroll = std::max(0, s);
+					mAutocompleteExplicitSelect = true;
 				}
 			}
 			else if (!IsReadOnly() && !ctrl && !shift && !alt &&
 				(ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))
-				AcceptAutocomplete(mAutocompleteIndex);
+			{
+				if (mAutocompleteExplicitSelect)
+					AcceptAutocomplete(mAutocompleteIndex);
+				else
+				{
+					CloseAutocomplete();
+					acConsumedKey = false;
+				}
+			}
 			else if (!IsReadOnly() && !ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGuiKey_Tab))
 				AcceptAutocomplete(mAutocompleteIndex);
 			else if (!ctrl && !alt && ImGui::IsKeyPressed(ImGuiKey_Escape))

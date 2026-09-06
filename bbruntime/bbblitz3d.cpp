@@ -463,13 +463,6 @@ int bbAvailVirtual() {
 Texture* bbLoadTexture(BBStr* file, int flags) {
 	debug3d("LoadTexture");
 	std::string path = *file;
-	if (g_texturePathMutator) {
-		BBStr* newPath = bbInvokeTexturePathMutator(file);
-		if (newPath) {
-			path = *newPath;
-			delete newPath;
-		}
-	}
 	delete file;
 	Texture* t = new Texture(path, flags);
 	if (!t->valid()) { delete t; return 0; }

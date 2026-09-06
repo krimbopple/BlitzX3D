@@ -200,7 +200,7 @@ TNode* CallNode::translate(Codegen* g) {
 ///////////////////////
 
 ExprNode* CallPtrNode::semant(Environ* env) {
-	Decl* sem_decl = env->findFunc(ident);
+	sem_decl = env->findFunc(ident);
 	
 	if (!sem_decl || !(sem_decl->kind & DECL_FUNC)) ex(std::format(MultiLang::function_not_found, ident));
 	if (OverrideFunctionMap.contains(ident)) ex(MultiLang::ambiguous_function_reference);

@@ -15,11 +15,19 @@
 
 #include "../debugger/debugger.h"
 
+struct SDL_Window;
+
 class gxRuntime {
 	/***** INTERNAL INTERFACE *****/
 public:
     HWND hwnd;
     HINSTANCE hinst;
+
+    SDL_Window* sdlWindow = nullptr;
+    HWND savedHwnd = nullptr;
+    bool usingSDLWindow() const { return sdlWindow != nullptr; }
+    void pumpSDLWindowEvents();
+    void destroySDLWindow();
 
     gxAudio* audio;
     gxInput* input;

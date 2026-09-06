@@ -12,6 +12,8 @@
 
 #include "bass.h"
 
+#include "sdlgpu/sdl_gpu_context.h"
+
 static bool SetModernDPIAwareness() {
 	HMODULE hShcore = LoadLibraryW(L"shcore.dll");
 	if (!hShcore) return false;
@@ -207,6 +209,7 @@ gxRuntime::~gxRuntime() {
 	if(audio) closeAudio(audio);
 	if(graphics) closeGraphics(graphics);
 	if(input) closeInput(input);
+	destroySDLWindow();
 	TIMECAPS tc;
 	timeGetDevCaps(&tc, sizeof(tc));
 	timeEndPeriod(tc.wPeriodMin);
@@ -406,8 +409,12 @@ void gxRuntime::paint() {
 //////////
 
 void gxRuntime::flip(bool vwait) {
+	pumpSDLWindowEvents();
 	MSG msg;
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+		if (msg.message == WM_STOP) { if (!suspended) forceSuspend(); continue; }
+		if (msg.message == WM_RUN) { if (suspended) forceResume(); continue; }
+		if (msg.message == WM_END) { debugger = 0; run_flag = false; return; }
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 		if (!run_flag) {
@@ -660,6 +667,7 @@ void gxRuntime::asyncEnd() {
 //////////
 bool gxRuntime::idle() {
 	for(;;) {
+		pumpSDLWindowEvents();
 		MSG msg;
 		BOOL success = 0;
 		if(suspended && run_flag) {
@@ -812,6 +820,24 @@ void gxRuntime::setTitle(const std::string& t, const std::string& e) {
 	app_title = t;
 	app_close = e;
 	SetWindowTextW(hwnd, UTF8::convertToUtf16(app_title).c_str());
+	if (usingSDLWindow()) sdlgpu::SetWindowTitle(sdlWindow, app_title.c_str());
+}
+
+void gxRuntime::pumpSDLWindowEvents() {
+	if (!sdlWindow) return;
+	sdlgpu::PumpEvents(sdlWindow, this);
+}
+
+void gxRuntime::destroySDLWindow() {
+	if (!sdlWindow) return;
+	SDL_Window* win = sdlWindow;
+	sdlWindow = nullptr;
+	sdlgpu::DestroyGameWindow(win);
+	if (savedHwnd) {
+		hwnd = savedHwnd;
+		savedHwnd = nullptr;
+		ShowWindow(hwnd, SW_SHOW);
+	}
 }
 
 //////////////////
@@ -1145,31 +1171,68 @@ gxGraphics* gxRuntime::openGraphics(int w, int h, int d, int driver, int flags) 
 
 	if (windowed) {
 		DebugMsg("Attempting openWindowedGraphics...");
+		bool sdlActive = false;
+		if (!sdlWindow) {
+			bool resizable = (flags & gxGraphics::GRAPHICS_SCALED) != 0;
+			bool borderless = (flags & gxGraphics::GRAPHICS_BORDERLESS) != 0;
+			std::string title = app_title.size() ? app_title : " ";
+			SDL_Window* win = sdlgpu::CreateGameWindow(w, h, resizable, borderless, title.c_str());
+			if (win) {
+				HWND sdlHwnd = (HWND)sdlgpu::GetHWND(win);
+				if (sdlHwnd) {
+					savedHwnd = hwnd;
+					ShowWindow(savedHwnd, SW_HIDE);
+					sdlWindow = win;
+					hwnd = sdlHwnd;
+					sdlActive = true;
+					sdlgpu::SizeWindowForClient(win, w, h);
+					sdlgpu::CenterWindow(win);
+				}
+				else {
+					sdlgpu::DestroyGameWindow(win);
+				}
+			}
+			if (!sdlActive) DebugMsg("SDL window create failed");
+		}
 		graphics = openWindowedGraphics(w, h, d, d3d);
+		if (sdlActive && !graphics) {
+			DebugMsg("openWindowedGraphics failed on SDL");
+			destroySDLWindow();
+			graphics = openWindowedGraphics(w, h, d, d3d);
+		}
 		if (graphics) {
 			DebugMsg("openWindowedGraphics SUCCESS");
 			gfx_mode = (flags & gxGraphics::GRAPHICS_SCALED) ? GMODE_SCALED : GMODE_FIXED;
 			auto_suspend = (flags & gxGraphics::GRAPHICS_AUTOSUSPEND) != 0;
 			border_mode = (flags & gxGraphics::GRAPHICS_BORDERLESS) ? 1 : 0;
 
-			if (border_mode == 0)
-				SetWindowLong(hwnd, GWL_STYLE, (gfx_mode == GMODE_SCALED) ? scaled_ws : static_ws);
-			else
-				SetWindowLong(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-			SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-
-			if (border_mode == 1 && gfx_mode == GMODE_SCALED) {
-				MoveWindow(hwnd, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), true);
+			if (usingSDLWindow()) {
+				sdlgpu::SizeWindowForClient(sdlWindow, w, h);
+				if (border_mode == 1 && gfx_mode == GMODE_SCALED) {
+					sdlgpu::CenterWindow(sdlWindow);
+				}
+				if (app_title.size()) sdlgpu::SetWindowTitle(sdlWindow, app_title.c_str());
 			}
 			else {
-				RECT w_r, c_r;
-				GetWindowRect(hwnd, &w_r);
-				GetClientRect(hwnd, &c_r);
-				int tw = (w_r.right - w_r.left) - (c_r.right - c_r.left);
-				int th = (w_r.bottom - w_r.top) - (c_r.bottom - c_r.top);
-				int cx = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
-				int cy = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
-				MoveWindow(hwnd, cx, cy, w + tw, h + th, true);
+				if (border_mode == 0)
+					SetWindowLong(hwnd, GWL_STYLE, (gfx_mode == GMODE_SCALED) ? scaled_ws : static_ws);
+				else
+					SetWindowLong(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+				SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+				if (border_mode == 1 && gfx_mode == GMODE_SCALED) {
+					MoveWindow(hwnd, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), true);
+				}
+				else {
+					RECT w_r, c_r;
+					GetWindowRect(hwnd, &w_r);
+					GetClientRect(hwnd, &c_r);
+					int tw = (w_r.right - w_r.left) - (c_r.right - c_r.left);
+					int th = (w_r.bottom - w_r.top) - (c_r.bottom - c_r.top);
+					int cx = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
+					int cy = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
+					MoveWindow(hwnd, cx, cy, w + tw, h + th, true);
+				}
 			}
 		}
 		else {
@@ -1226,6 +1289,7 @@ void gxRuntime::closeGraphics(gxGraphics* g) {
 		backBuffer = 0;
 		frontBuffer = 0;
 	}
+	destroySDLWindow();
 	EnterCriticalSection(&g_gfxCS);
 	gxGraphics* old_graphics = graphics;
 	graphics = 0;

@@ -31,7 +31,7 @@ Need help, have a question, or found a problem?
 - Upgraded audio system now powered by BASS for improved compatibility, stability, and sound quality.
 
 ### Used in
-* [**SCP – Containment Breach Multiplayer**](https://store.steampowered.com/app/1782380/SCP_Containment_Breach_Multiplayer/)
+* [**SCP – Containment Breach Multiplayer 1.3.0R**](https://store.steampowered.com/app/1782380/SCP_Containment_Breach_Multiplayer/)
 * [**SCP – Containment Breach Ultimate Edition Reborn 1.6**](https://github.com/Jabka666/scpcb-ue-my/tree/1.5.x)
 * [**SCP – Containment Breach Faerov Mod**](https://www.moddb.com/mods/scp-containment-breach-faerov-mod)
 * [**SCP – Terror Hunt**](https://www.moddb.com/mods/scp-terror-hunt-mod)

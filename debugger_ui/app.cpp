@@ -513,32 +513,22 @@ void App::drawProfilerTab() {
 	ImGui::EndChild();
 }
 
-void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y, float w, float h) {
-	if (items.empty() || w < 2.0f) return;
+void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y, float w, float boxH, float rowPitch, int parentSamples) {
+	if (items.empty() || w < 1.0f || parentSamples <= 0 || boxH < 1.0f) return;
 	ImDrawList* dl = ImGui::GetWindowDrawList();
-
-	int childTotal = 0;
-	for (const DbgFlameNode& n : items) childTotal += n.samples;
-	if (childTotal <= 0) return;
 
 	ImVec2 mouse = ImGui::GetIO().MousePos;
 
-	float cx = x;
-	float remaining = w;
+	double cx = (double)x;
 	for (size_t i = 0; i < items.size(); ++i) {
 		const DbgFlameNode& n = items[i];
-		float cw;
-		if (i + 1 == items.size()) {
-			cw = remaining;
-		}
-		else {
-			cw = (float)((double)n.samples / (double)childTotal * w);
-			if (cw < 1.0f) cw = 1.0f;
-			if (cw > remaining) cw = remaining;
-		}
-
-		float x0 = cx, x1 = cx + cw, y0 = y, y1 = y + h;
-		if (cw >= 2.0f && h >= 1.0f) {
+		if (n.samples <= 0) continue;
+		double cwTrue = (double)n.samples / (double)parentSamples * (double)w;
+		if (cwTrue <= 0.0) continue;
+		float x0 = (float)cx;
+		float cw = (float)cwTrue;
+		float x1 = x0 + cw, y0 = y, y1 = y + boxH;
+		if (cw >= 2.0f) {
 			ImU32 base = flameColor(n.name);
 			ImU32 top, bottom, border;
 			flameGradient(base, top, bottom, border);
@@ -546,7 +536,7 @@ void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y
 			dl->AddRectFilledMultiColor(ImVec2(x0, y0), ImVec2(x1, y1), top, top, bottom, bottom);
 			dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), border);
 
-			if (cw > 28.0f && h >= 12.0f) {
+			if (cw > 28.0f && boxH >= 12.0f) {
 				int r = (base >> IM_COL32_R_SHIFT) & 0xFF;
 				int g = (base >> IM_COL32_G_SHIFT) & 0xFF;
 				int b = (base >> IM_COL32_B_SHIFT) & 0xFF;
@@ -557,7 +547,7 @@ void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y
 				sprintf(buf, "%s (%d)", n.name.c_str(), n.samples);
 				ImVec2 ts = ImGui::CalcTextSize(buf);
 				if (ts.x <= cw - 8.0f) {
-					dl->AddText(ImVec2(x0 + 4.0f, y0 + (h - ImGui::GetTextLineHeight()) * 0.5f), tc, buf);
+					dl->AddText(ImVec2(x0 + 4.0f, y0 + (boxH - ImGui::GetTextLineHeight()) * 0.5f), tc, buf);
 				}
 			}
 
@@ -571,9 +561,10 @@ void App::drawFlameTree(const std::vector<DbgFlameNode>& items, float x, float y
 			}
 		}
 
-		drawFlameTree(n.children, cx, y + h, cw, h);
-		cx += cw;
-		remaining -= cw;
+		if (!n.children.empty() && cwTrue >= 1.0) {
+			drawFlameTree(n.children, x0, y + rowPitch, cw, boxH, rowPitch, n.samples);
+		}
+		cx += cwTrue;
 	}
 }
 
@@ -583,10 +574,9 @@ int App::measureFlameDepth(const std::vector<DbgFlameNode>& v, int d, int& maxDe
 	for (const DbgFlameNode& n : v) {
 		totalSamples += n.samples;
 		if (d > maxDepth) maxDepth = d;
-		for (const DbgFlameNode& child : n.children) {
-			int childMax = 0;
-			int childTotal = measureFlameDepth(child.children, d + 1, childMax);
-			totalSamples += childTotal > 0 ? childTotal : 0;
+		if (!n.children.empty()) {
+			int childMax = d;
+			measureFlameDepth(n.children, d + 1, childMax);
 			if (childMax > maxDepth) maxDepth = childMax;
 		}
 	}
@@ -619,7 +609,7 @@ void App::drawFlameGraphTab() {
 	if (depthH < 14.0f) depthH = 14.0f;
 
 	hoverValid = false;
-	drawFlameTree(flameNodes, origin.x + margin, yOff, avail.x - margin * 2.0f, depthH - rowGap);
+	drawFlameTree(flameNodes, origin.x + margin, yOff, avail.x - margin * 2.0f, depthH - rowGap, depthH, totalSamples);
 
 	if (hoverValid) {
 		ImDrawList* dl = ImGui::GetWindowDrawList();

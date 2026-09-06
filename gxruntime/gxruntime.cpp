@@ -619,6 +619,9 @@ LRESULT gxRuntime::windowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 		case WM_KEYUP:case WM_SYSKEYUP:
 			if(int n = ((lparam >> 17) & 0x80) | ((lparam >> 16) & 0x7f)) input->wm_keyup(n);
 			break;
+		case WM_CHAR:
+			input->wm_char(wparam, lparam);
+			break;
 		default:
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 	}
@@ -675,9 +678,6 @@ bool gxRuntime::idle() {
 			case WM_END:
 				debugger = 0;
 				run_flag = false;
-				break;
-			case WM_CHAR:
-				input->wm_char(msg.wParam, msg.lParam);
 				break;
 			default:
 				TranslateMessage(&msg);

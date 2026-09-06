@@ -95,6 +95,15 @@ bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win) {
 		SDL_CancelGPUCommandBuffer(cmds);
 		return false;
 	}
+	if (tex) {
+		SDL_GPUColorTargetInfo target{};
+		target.texture = tex;
+		target.load_op = SDL_GPU_LOADOP_CLEAR;
+		target.store_op = SDL_GPU_STOREOP_STORE;
+		target.clear_color = SDL_FColor{ 0.1f, 0.1f, 0.3f, 1.0f };
+		SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmds, &target, 1, nullptr);
+		SDL_EndGPURenderPass(pass);
+	}
 	return SDL_SubmitGPUCommandBuffer(cmds);
 }
 

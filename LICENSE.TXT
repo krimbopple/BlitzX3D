@@ -6,8 +6,8 @@ where applicable.
 
 ===============================================================================
 BLITZX3D COMMUNITY LICENSE
-Version 1.2
-Effective Date: July 16, 2026
+Version 1.3
+Effective Date: September 5, 2026
 
 Copyright (c) 2026-present Chris A. (krimbopple)
 
@@ -174,3 +174,45 @@ provisions shall remain in effect.
 
 This license represents the complete terms governing the BlitzX3D Contributions
 and supersedes prior statements concerning those Contributions.
+
+
+14. REPOSITORY CONTINUITY
+
+(a) Designation of Official Repository. The "Official Repository" is the
+primary repository designated by Chris A. (krimbopple) for the distribution
+of BlitzX3D Contributions. If the then-current Official Repository becomes
+unavailable, is taken offline, or is removed, Chris A. (krimbopple) may
+designate a successor Official Repository by any reasonable public
+announcement (including but not limited to a project website, social media
+account, or other repository host).
+
+(b) Continuing Obligations Unaffected by Repository Availability. The
+unavailability, removal, or relocation of the Official Repository does not
+suspend, waive, or otherwise affect any obligation under Section 4 (Source
+Publication Requirement) or Section 6 (Attribution). A distributor, forker,
+or mirror operator remains bound by those sections regardless of where the
+BlitzX3D Contributions are hosted or obtained from.
+
+(c) No Effect on Section 3 Grant. Nothing in this Section 14 limits,
+suspends, or revokes the license granted in Section 3. Redistribution,
+forking, or mirroring of the BlitzX3D Contributions that complies with
+Sections 4, 5, and 6 remains authorized under this license at all times,
+including any period during which the Official Repository is unavailable.
+
+(d) Trademark and Name Usage. "BlitzX3D" and any associated logos are not
+licensed under Section 3 and are not BlitzX3D Contributions for purposes of
+this license. No provision of this license grants any right to use the name
+"BlitzX3D," any associated logos, or any confusingly similar name or mark to
+identify a fork, mirror, or derivative distribution as the official or
+authoritative version of the project, or in a manner likely to suggest
+endorsement by or affiliation with Chris A. (krimbopple), without separate
+written permission. This subsection does not restrict truthful,
+non-confusing references to the project's origin (e.g., "based on
+BlitzX3D") required by or consistent with Section 5.
+
+(e) Enforcement. Nothing in this Section 14 limits the remedies available
+under Section 11 for actual violations of Sections 4, 5, or 6, including
+termination of rights and pursuit of injunctive relief, damages, or DMCA
+enforcement against distributions that fail to comply with those sections,
+irrespective of whether such failure occurs before, during, or after any
+period of Official Repository unavailability.

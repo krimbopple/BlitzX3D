@@ -167,8 +167,8 @@ private:
 	std::set<gxLight*> _allLights;
 	std::vector<gxLight*> _curLights;
 
-	int d3d_rs[160];
-	int d3d_tss[8][32];
+	int d3d_rs[210];
+	int d3d_tss[8][33];
 	int d3d_samp[8][16];
 	IDirect3DBaseTexture9* d3d_tex[8];
 

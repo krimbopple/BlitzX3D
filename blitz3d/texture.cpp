@@ -47,7 +47,8 @@ struct Texture::Rep {
 	Rep(int w, int h, int flags, int cnt) :
 		ref_cnt(1), cached_tex(w, h, flags, cnt),
 		tex_blend(gxScene::BLEND_MULTIPLY), tex_flags(0),
-		sx(1), sy(1), tx(0), ty(0), rot(0), mat_used(false) {
+		bumpEnvMat{ {0, 0}, {0, 0} }, bumpEnvScale(0), bumpEnvOffset(0),
+		sx(1), sy(1), tx(0), ty(0), rot(0), mat_used(false), mat_valid(false) {
 		transparent =
 			(flags & gxCanvas::CANVAS_TEX_ALPHA) &&
 			!(flags & gxCanvas::CANVAS_TEX_MASK);
@@ -57,7 +58,8 @@ struct Texture::Rep {
 	Rep(const std::string& f, int flags, int w, int h, int first, int cnt) :
 		ref_cnt(1), cached_tex(f, flags, w, h, first, cnt),
 		tex_blend(gxScene::BLEND_MULTIPLY), tex_flags(0),
-		sx(1), sy(1), tx(0), ty(0), rot(0), mat_used(false) {
+		bumpEnvMat{ {0, 0}, {0, 0} }, bumpEnvScale(0), bumpEnvOffset(0),
+		sx(1), sy(1), tx(0), ty(0), rot(0), mat_used(false), mat_valid(false) {
 		transparent =
 			(flags & gxCanvas::CANVAS_TEX_ALPHA) &&
 			!(flags & gxCanvas::CANVAS_TEX_MASK);
@@ -67,9 +69,11 @@ struct Texture::Rep {
 	Rep(const Rep& t) :
 		ref_cnt(1), cached_tex(t.cached_tex),
 		tex_blend(t.tex_blend), tex_flags(t.tex_flags),
+		bumpEnvMat{ {t.bumpEnvMat[0][0], t.bumpEnvMat[0][1]}, {t.bumpEnvMat[1][0], t.bumpEnvMat[1][1]} },
+		bumpEnvScale(t.bumpEnvScale), bumpEnvOffset(t.bumpEnvOffset),
 		sx(t.sx), sy(t.sy), tx(t.tx), ty(t.ty), rot(t.rot),
 		mat_used(t.mat_used), mat_valid(t.mat_valid), matrix(t.matrix),
-		transparent(t.transparent) {
+		transparent(t.transparent), pinned(t.pinned) {
 	}
 };
 

@@ -48,7 +48,7 @@ private:
 	bool cls_argb, cls_z;
 	int proj_mode;
 	Vector fog_color;
-	float fog_nr, fog_fr, fog_den;
+	float fog_nr = 1.0f, fog_fr = 1000.0f, fog_den = 1.0f;
 	int fog_mode;
 	float frustum_nr, frustum_fr;
 	mutable float frustum_w, frustum_h;

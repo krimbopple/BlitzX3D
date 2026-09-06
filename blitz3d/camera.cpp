@@ -12,6 +12,7 @@ Camera::Camera() {
 	setProjMode(PROJ_PERSP);
 	setFogRange(1, 1000);
 	setFogColor(Vector());
+	setFogDensity(1.0f);
 	setFogMode(gxScene::FOG_NONE);
 }
 

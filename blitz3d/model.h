@@ -82,17 +82,17 @@ private:
 	Brush brush, render_brush;
 
 	mutable bool w_brush;
-	float captured_alpha, tweened_alpha;
+	float captured_alpha = 1.0f, tweened_alpha = 1.0f;
 
-	bool auto_fade;
-	float auto_fade_nr, auto_fade_fr;
+	bool auto_fade = false;
+	float auto_fade_nr = 0.0f, auto_fade_fr = 0.0f;
 
 	std::vector<MeshQueue*> queues[2];
 
 	void enqueue(MeshQueue* q);
 
-	gxEffect* entityEffect;
-	gxEffect* renderEffect;
+	gxEffect* entityEffect = nullptr;
+	gxEffect* renderEffect = nullptr;
 };
 
 #endif

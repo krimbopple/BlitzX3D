@@ -99,13 +99,16 @@ static uint64_t computeStateKey(const Brush& b, gxEffect* e) {
 Model::Model() :
 	space(RENDER_SPACE_LOCAL),
 	auto_fade(false),
-	captured_alpha(1), w_brush(true) {
+	auto_fade_nr(0), auto_fade_fr(0),
+	captured_alpha(1), tweened_alpha(1), w_brush(true),
+	entityEffect(nullptr), renderEffect(nullptr) {
 }
 
 Model::Model(const Model& t) :Object(t),
 space(t.space), brush(t.brush),
 auto_fade(t.auto_fade), auto_fade_nr(t.auto_fade_nr), auto_fade_fr(t.auto_fade_fr),
-captured_alpha(t.captured_alpha), w_brush(true) {
+captured_alpha(t.captured_alpha), tweened_alpha(t.tweened_alpha), w_brush(true),
+entityEffect(t.entityEffect), renderEffect(nullptr) {
 }
 
 void Model::capture() {

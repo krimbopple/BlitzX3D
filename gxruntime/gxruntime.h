@@ -16,6 +16,7 @@
 #include "../debugger/debugger.h"
 
 struct SDL_Window;
+struct SDL_GPUDevice;
 
 class gxRuntime {
 	/***** INTERNAL INTERFACE *****/
@@ -24,6 +25,7 @@ public:
     HINSTANCE hinst;
 
     SDL_Window* sdlWindow = nullptr;
+    SDL_GPUDevice* sdlGpu = nullptr;
     HWND savedHwnd = nullptr;
     bool usingSDLWindow() const { return sdlWindow != nullptr; }
     void pumpSDLWindowEvents();

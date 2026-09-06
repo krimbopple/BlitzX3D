@@ -5,6 +5,7 @@
 #include <dinput.h>
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_video.h>
 
@@ -61,6 +62,17 @@ void SizeWindowForClient(SDL_Window* win, int clientW, int clientH) {
 void CenterWindow(SDL_Window* win) {
 	if (!win) return;
 	SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+}
+
+SDL_GPUDevice* CreateGPUDevice() {
+	return SDL_CreateGPUDevice(
+		(SDL_GPUShaderFormat)(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL),
+		false, nullptr);
+}
+
+void DestroyGPUDevice(SDL_GPUDevice* dev) {
+	if (!dev) return;
+	SDL_DestroyGPUDevice(dev);
 }
 
 int SdlScancodeToDIK(int sc) {

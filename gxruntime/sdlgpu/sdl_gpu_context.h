@@ -2,6 +2,7 @@
 #define SDL_GPU_CONTEXT_H
 
 struct SDL_Window;
+struct SDL_GPUDevice;
 class gxRuntime;
 
 namespace sdlgpu {
@@ -15,6 +16,8 @@ void SizeWindowForClient(SDL_Window* win, int clientW, int clientH);
 void CenterWindow(SDL_Window* win);
 void PumpEvents(SDL_Window* win, ::gxRuntime* rt);
 int SdlScancodeToDIK(int sdlScancode);
+SDL_GPUDevice* CreateGPUDevice();
+void DestroyGPUDevice(SDL_GPUDevice* dev);
 
 }
 

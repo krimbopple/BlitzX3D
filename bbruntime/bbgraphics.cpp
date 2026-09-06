@@ -1372,6 +1372,7 @@ Texture* bbLoadAnimTextureGrid(BBStr* file, int flags, int fw, int fh, int first
         return nullptr;
     }
 
+    std::string path = *file;
     int imgW = 0, imgH = 0;
     IDirect3DTexture9* picTex = ddUtil::loadTextureSurface(path, flags, gx_graphics, false, &imgW, &imgH);
     if (!picTex) {
@@ -1393,7 +1394,6 @@ Texture* bbLoadAnimTextureGrid(BBStr* file, int flags, int fw, int fh, int first
         return nullptr;
     }
 
-    std::string path = *file;
     Texture* tex = new Texture(path, flags, frameW, frameH, first, cnt);
     if (!tex->getCanvas(0)) {
         delete tex;

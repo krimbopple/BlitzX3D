@@ -125,7 +125,6 @@ Toker::Toker(const std::string& file, std::istream& in, bool debug) :inc_file(fi
 {
     MacroDefines["__DEBUG__"] = debug ? "True" : "False";
     MacroDefines["__VERSION__"] = BASE_VER;
-    MacroDefines["_B3XD"] = "1";
     makeKeywords();
     nextline();
 }

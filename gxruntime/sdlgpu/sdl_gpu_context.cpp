@@ -85,6 +85,19 @@ void ReleaseWindow(SDL_GPUDevice* dev, SDL_Window* win) {
 	SDL_ReleaseWindowFromGPUDevice(dev, win);
 }
 
+bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win) {
+	if (!dev || !win) return false;
+	SDL_GPUCommandBuffer* cmds = SDL_AcquireGPUCommandBuffer(dev);
+	if (!cmds) return false;
+	SDL_GPUTexture* tex = nullptr;
+	Uint32 w = 0, h = 0;
+	if (!SDL_AcquireGPUSwapchainTexture(cmds, win, &tex, &w, &h)) {
+		SDL_CancelGPUCommandBuffer(cmds);
+		return false;
+	}
+	return SDL_SubmitGPUCommandBuffer(cmds);
+}
+
 int SdlScancodeToDIK(int sc) {
 	switch (sc) {
 	case SDL_SCANCODE_ESCAPE: return DIK_ESCAPE;

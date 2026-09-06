@@ -460,6 +460,11 @@ void gxRuntime::flip(bool vwait) {
 		gfx_lost = false;
 	}
 
+	if (sdlGpu && sdlWindow) {
+		sdlgpu::PresentSwapchain(sdlGpu, sdlWindow);
+		return;
+	}
+
 	HRESULT hr = d3dDevice->Present(NULL, NULL, NULL, NULL);
 	if (hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICEHUNG || hr == D3DERR_DEVICEREMOVED) {
 		gfx_lost = true;

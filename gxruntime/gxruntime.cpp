@@ -829,6 +829,7 @@ void gxRuntime::pumpSDLWindowEvents() {
 }
 
 void gxRuntime::destroySDLWindow() {
+	if (sdlGpu && sdlWindow) sdlgpu::ReleaseWindow(sdlGpu, sdlWindow);
 	if (sdlGpu) {
 		sdlgpu::DestroyGPUDevice(sdlGpu);
 		sdlGpu = nullptr;
@@ -1191,6 +1192,11 @@ gxGraphics* gxRuntime::openGraphics(int w, int h, int d, int driver, int flags) 
 					sdlActive = true;
 					sdlGpu = sdlgpu::CreateGPUDevice();
 					if (!sdlGpu) DebugMsg("SDL GPU device create failed");
+					else if (!sdlgpu::ClaimWindow(sdlGpu, win)) {
+						DebugMsg("SDL GPU claim window failed");
+						sdlgpu::DestroyGPUDevice(sdlGpu);
+						sdlGpu = nullptr;
+					}
 					sdlgpu::SizeWindowForClient(win, w, h);
 					sdlgpu::CenterWindow(win);
 				}

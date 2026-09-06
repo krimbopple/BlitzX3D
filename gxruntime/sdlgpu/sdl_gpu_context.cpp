@@ -75,6 +75,16 @@ void DestroyGPUDevice(SDL_GPUDevice* dev) {
 	SDL_DestroyGPUDevice(dev);
 }
 
+bool ClaimWindow(SDL_GPUDevice* dev, SDL_Window* win) {
+	if (!dev || !win) return false;
+	return SDL_ClaimWindowForGPUDevice(dev, win);
+}
+
+void ReleaseWindow(SDL_GPUDevice* dev, SDL_Window* win) {
+	if (!dev || !win) return;
+	SDL_ReleaseWindowFromGPUDevice(dev, win);
+}
+
 int SdlScancodeToDIK(int sc) {
 	switch (sc) {
 	case SDL_SCANCODE_ESCAPE: return DIK_ESCAPE;

@@ -452,7 +452,7 @@ void App::frame() {
 		ImGui::Begin("About BlitzX3D", &aboutOpen);
 		ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 		ImGui::Text("BlitzX3D IDE");
-		ImGui::Text("Version V1.5.0");
+		ImGui::Text("Version V1.5.1");
 		ImGui::Separator();
 		ImGui::Text("blitzpath: %s", prefs.homeDir.c_str());
 		ImGui::End();

@@ -14,7 +14,7 @@ Need help, have a question, or found a problem?
 ---
 
 ### Features
-- DirectX 9 rendering support, with [SDL GPU](https://wiki.libsdl.org/SDL3/CategoryGPU) support coming soon!
+- DirectX 9 rendering support
 - New ImGui-based IDE & Debugger replacing the legacy editors.
 - Debugger runs as a separate process for better performance, and now has expandable arrays in variable trees.
 - Built-in profiler with per-function timing, call counts, memory statistics, and a flame graph for identifying performance bottlenecks.

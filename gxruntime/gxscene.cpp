@@ -97,7 +97,8 @@ static uint64_t computeRenderStateKey(const gxScene::RenderState& rs) {
 
 gxScene::gxScene(gxGraphics* g, gxCanvas* t) :
 	graphics(g), target(t), dir3dDev(g->dir3dDev),
-	n_texs(0), tris_drawn(0), lastStateKey(0) {
+	n_texs(0), tris_drawn(0), lastStateKey(0),
+	textureLodBias(0), textureAnisotropic(0) {
 
 	currentEffect = nullptr;
 	D3DXMatrixIdentity(&currentWorld);

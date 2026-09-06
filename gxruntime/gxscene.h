@@ -127,8 +127,8 @@ public:
 	int getTrianglesDrawn()const;
 	gxEffect* getEffect() const;
 
-	DWORD textureLodBias;
-	int textureAnisotropic;
+	DWORD textureLodBias = 0;
+	int textureAnisotropic = 0;
 
 private:
 	gxCanvas* target;

@@ -175,7 +175,6 @@ static unsigned curr_clsColor;
 
 static std::vector<GfxMode> gfx_modes;
 
-TexturePathMutator g_texturePathMutator = nullptr;
 extern std::unordered_set<Texture*> texture_set;
 
 static inline void debugImage(bbImage* i, const char* function, int frame = 0)
@@ -1276,13 +1275,6 @@ void bbCloseMovie(gxMovie* movie)
 bbImage* bbLoadImage(BBStr* s)
 {
     std::string path = *s;
-    if (g_texturePathMutator) {
-        BBStr* newPath = bbInvokeTexturePathMutator(s);
-        if (newPath) {
-            path = *newPath;
-            delete newPath;
-        }
-    }
     delete s;
     gxCanvas* c = gx_graphics->loadCanvas(path, 0);
     if (!c) {
@@ -1303,13 +1295,6 @@ bbImage* bbLoadImage(BBStr* s)
 bbImage* bbLoadImageFlag(BBStr* s, int flags)
 {
     std::string path = *s;
-    if (g_texturePathMutator) {
-        BBStr* newPath = bbInvokeTexturePathMutator(s);
-        if (newPath) {
-            path = *newPath;
-            delete newPath;
-        }
-    }
     delete s;
     gxCanvas* c = gx_graphics->loadCanvas(path, flags);
     if (!c) {
@@ -1329,13 +1314,6 @@ bbImage* bbLoadImageFlag(BBStr* s, int flags)
 
 bbImage* bbLoadAnimImage(BBStr* s, int w, int h, int first, int cnt) {
     std::string path = *s;
-    if (g_texturePathMutator) {
-        BBStr* newPath = bbInvokeTexturePathMutator(s);
-        if (newPath) {
-            path = *newPath;
-            delete newPath;
-        }
-    }
     delete s;
 
     int srcFlags = ddUtil::hasActualAlpha(path) ? gxCanvas::CANVAS_TEX_ALPHA : 0;
@@ -1383,14 +1361,6 @@ bbImage* bbLoadAnimImage(BBStr* s, int w, int h, int first, int cnt) {
 }
 
 Texture* bbLoadAnimTextureGrid(BBStr* file, int flags, int fw, int fh, int first, int cnt) {
-    std::string path = *file;
-    if (g_texturePathMutator) {
-        BBStr* newPath = bbInvokeTexturePathMutator(file);
-        if (newPath) {
-            path = *newPath;
-            delete newPath;
-        }
-    }
     delete file;
 
     if (fw <= 0 || fh <= 0) {
@@ -1423,6 +1393,7 @@ Texture* bbLoadAnimTextureGrid(BBStr* file, int flags, int fw, int fh, int first
         return nullptr;
     }
 
+    std::string path = *file;
     Texture* tex = new Texture(path, flags, frameW, frameH, first, cnt);
     if (!tex->getCanvas(0)) {
         delete tex;
@@ -1905,27 +1876,6 @@ void bbTFormImage(bbImage* i, float a, float b, float c, float d)
 void bbSetTFormMethod(int method) {
     if (method < 0 || method > 2) method = 1;
     tform_method = method;
-}
-
-BBStr* bbInvokeTexturePathMutator(BBStr* path) {
-    if (!g_texturePathMutator) return nullptr;
-    BBStr* arg = new BBStr(*path);
-    return g_texturePathMutator(arg);
-}
-
-static std::string cachedTexturePathAdapter(const std::string& f) {
-    if (!g_texturePathMutator) return "";
-    BBStr in(f);
-    BBStr* out = bbInvokeTexturePathMutator(&in);
-    if (!out) return "";
-    std::string result = *out;
-    delete out;
-    return result;
-}
-
-void bbSetTextureLoadPathMutator(TexturePathMutator mutator) {
-    g_texturePathMutator = mutator;
-    CachedTexture::setPathMutator(mutator ? cachedTexturePathAdapter : nullptr);
 }
 
 void bbScaleImage(bbImage* i, float w, float h)
@@ -2495,8 +2445,6 @@ void graphics_link(void (*rtSym)(const char* sym, void* pc))
     rtSym("TFormImage%image#a#b#c#d", bbTFormImage);
     rtSym("SetTFormMethod%method", bbSetTFormMethod);
     rtSym("TFormFilter%enable", bbTFormFilter);
-    rtSym("SetTextureLoadPathMutator%mutator", bbSetTextureLoadPathMutator);
-
     rtSym("$GetEffectError", bbGetEffectError);
 
     rtSym("%ImagesOverlap%image1%x1%y1%image2%x2%y2", bbImagesOverlap);

@@ -55,7 +55,8 @@ struct CallNode : public ExprNode {
 
 struct CallPtrNode : public ExprNode {
 	std::string ident;
-	CallPtrNode(const std::string& i) :ident(i) {}
+	Decl* sem_decl;
+	CallPtrNode(const std::string& i) :ident(i), sem_decl(nullptr) {}
 	ExprNode* semant(Environ* e);
 	TNode* translate(Codegen* g);
 };

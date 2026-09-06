@@ -11,12 +11,7 @@ extern gxScene* gx_scene;
 
 class bbImage;
 
-typedef BBStr* (*TexturePathMutator)(BBStr*);
-void bbSetTextureLoadPathMutator(TexturePathMutator mutator);
-extern TexturePathMutator g_texturePathMutator;
 BBStr* bbGetTextureLoadError();
-
-BBStr* bbInvokeTexturePathMutator(BBStr* path);
 
 //general graphics functions
 int		 bbCountGfxDrivers();

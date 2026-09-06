@@ -11,6 +11,10 @@ Need help, have a question, or found a problem?
 - [**Join the BlitzX3D Support Discord**](https://discord.gg/S7MXjp6ejW)
 - [**Open a GitHub Issue**](https://github.com/krimbopple/BlitzX3D/issues) for bugs, feature requests, or other issues.
 
+> **Note:** BlitzX3D is volunteer-maintained. Support is best-effort with no
+> guaranteed response time. We aim to stay as backwards compatible with
+> Blitz3D as possible, but this is not guaranteed.
+
 ---
 
 ### Features

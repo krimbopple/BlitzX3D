@@ -209,7 +209,13 @@ ExprNode* CallPtrNode::semant(Environ* env) {
 }
 
 TNode* CallPtrNode::translate(Codegen* g) {
-	return global("_f" + ident);
+	FuncType* f = sem_decl->type->funcType();
+	TNode* t = global("_f" + ident);
+	if(f->userlib) {
+		t = new TNode(IR_MEM, t);
+		usedfuncs.insert(ident);
+	}
+	return t;
 }
 
 /////////////////////////

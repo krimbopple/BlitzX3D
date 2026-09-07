@@ -3,6 +3,7 @@
 #include "gxgraphics.h"
 
 #include "gxruntime.h"
+#include "sdlgpu/sdl_gpu_mesh.h"
 
 extern gxRuntime* gx_runtime;
 
@@ -11,6 +12,9 @@ gxMesh::gxMesh(gxGraphics* g, IDirect3DVertexBuffer9* vs, IDirect3DIndexBuffer9*
     graphics(g), vertex_buff(vs), index_buff(is), vertex_decl(nullptr),
     locked_verts(nullptr), locked_skin_verts(nullptr), locked_indices(nullptr),
     max_verts(max_vs), max_tris(max_ts), mesh_dirty(false), skinned(false) {
+    if (g && g->runtime && g->runtime->sdlGpu) {
+        gpuMirror = sdlgpu::CreateMesh(g->runtime->sdlGpu, sizeof(dxVertex), max_vs, max_ts);
+    }
 }
 
 gxMesh::gxMesh(gxGraphics* g, IDirect3DVertexBuffer9* vs, IDirect3DIndexBuffer9* is,
@@ -18,10 +22,17 @@ gxMesh::gxMesh(gxGraphics* g, IDirect3DVertexBuffer9* vs, IDirect3DIndexBuffer9*
     graphics(g), vertex_buff(vs), index_buff(is), vertex_decl(decl),
     locked_verts(nullptr), locked_skin_verts(nullptr), locked_indices(nullptr),
     max_verts(max_vs), max_tris(max_ts), mesh_dirty(false), skinned(true) {
+    if (g && g->runtime && g->runtime->sdlGpu) {
+        gpuMirror = sdlgpu::CreateMesh(g->runtime->sdlGpu, sizeof(dxSkinVertex), max_vs, max_ts);
+    }
 }
 
 gxMesh::~gxMesh() {
     unlock();
+    if (graphics && graphics->runtime && gpuMirror) {
+        sdlgpu::ReleaseMesh(graphics->runtime->sdlGpu, gpuMirror);
+        gpuMirror = nullptr;
+    }
     if (vertex_buff) { vertex_buff->Release(); vertex_buff = nullptr; }
     if (index_buff) { index_buff->Release();  index_buff = nullptr; }
 }
@@ -66,6 +77,15 @@ bool gxMesh::lock(bool all) {
 }
 
 void gxMesh::unlock() {
+    if (gpuMirror && graphics && graphics->runtime && graphics->runtime->sdlGpu) {
+        const void* verts = skinned ? (const void*)locked_skin_verts : (const void*)locked_verts;
+        unsigned stride = skinned ? sizeof(dxSkinVertex) : sizeof(dxVertex);
+        if (verts && locked_indices) {
+            sdlgpu::UploadMesh(graphics->runtime->sdlGpu, gpuMirror,
+                verts, stride * (unsigned)max_verts,
+                locked_indices, (unsigned)sizeof(WORD) * (unsigned)max_tris * 3);
+        }
+    }
     if (locked_verts) {
         vertex_buff->Unlock();
         locked_verts = nullptr;

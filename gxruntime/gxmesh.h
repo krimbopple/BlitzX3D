@@ -6,6 +6,8 @@
 
 class gxGraphics;
 
+namespace sdlgpu { struct GpuMesh; }
+
 class gxMesh {
 public:
     static const int MESH_DYNAMIC = 1;
@@ -60,10 +62,14 @@ private:
     dxSkinVertex* locked_skin_verts;
     WORD* locked_indices;
 
+    sdlgpu::GpuMesh* gpuMirror = nullptr;
+
     /***** GX INTERFACE *****/
 public:
     bool lock(bool all);
     void unlock();
+
+    sdlgpu::GpuMesh* getGpuMirror() const { return gpuMirror; }
 
     void setVertex(int n, const void* v) {
         memcpy(locked_verts + n, v, sizeof(dxVertex));

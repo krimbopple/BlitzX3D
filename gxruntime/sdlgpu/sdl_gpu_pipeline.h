@@ -8,6 +8,7 @@ struct SDL_GPURenderPass;
 namespace sdlgpu {
 
 void DrawTrivial(SDL_GPUDevice* dev, SDL_Window* win, SDL_GPURenderPass* pass);
+bool PresentBlit(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, float b, unsigned w, unsigned h, const void* px);
 void TeardownPipelines();
 
 }

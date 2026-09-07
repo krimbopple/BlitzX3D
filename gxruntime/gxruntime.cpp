@@ -467,7 +467,27 @@ void gxRuntime::flip(bool vwait) {
 		float r = ((argb >> 16) & 0xff) / 255.0f;
 		float g = ((argb >> 8) & 0xff) / 255.0f;
 		float b = (argb & 0xff) / 255.0f;
-		sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, r, g, b);
+		gxCanvas* back = graphics ? graphics->getBackCanvas() : nullptr;
+		bool locked = back && back->lock();
+		bool blitted = false;
+		if (locked) {
+			int w = back->getWidth(), h = back->getHeight();
+			static std::vector<unsigned> px;
+			px.resize((size_t)w * (size_t)h);
+			for (int y = 0; y < h; ++y) {
+				for (int x = 0; x < w; ++x) {
+					unsigned p = back->getPixelFast(x, y);
+					px[(size_t)y * (size_t)w + (size_t)x] =
+						((p >> 16) & 0xff) | ((p >> 8) & 0xff00) | ((p << 16) & 0xff0000) | (p & 0xff000000);
+				}
+			}
+			back->unlock();
+			blitted = sdlgpu::PresentBlit(sdlGpu, sdlWindow, r, g, b, (unsigned)w, (unsigned)h, px.data());
+		}
+		if (!blitted) {
+			if (!locked) sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, 1.0f, 0.0f, 1.0f);
+			else sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, 1.0f, 0.5f, 0.0f);
+		}
 		return;
 	}
 

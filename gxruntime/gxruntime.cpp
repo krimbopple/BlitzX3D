@@ -462,7 +462,11 @@ void gxRuntime::flip(bool vwait) {
 
 	if (sdlGpu && sdlWindow) {
 		sdlgpu::SetVSync(sdlGpu, sdlWindow, vwait);
-		sdlgpu::PresentSwapchain(sdlGpu, sdlWindow);
+		unsigned argb = graphics ? graphics->getBackCanvas()->getClsColor() : 0;
+		float r = ((argb >> 16) & 0xff) / 255.0f;
+		float g = ((argb >> 8) & 0xff) / 255.0f;
+		float b = (argb & 0xff) / 255.0f;
+		sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, r, g, b);
 		return;
 	}
 

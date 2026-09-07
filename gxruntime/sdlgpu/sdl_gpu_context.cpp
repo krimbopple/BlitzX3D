@@ -93,7 +93,7 @@ void SetVSync(SDL_GPUDevice* dev, SDL_Window* win, bool vsync) {
 	if (SDL_SetGPUSwapchainParameters(dev, win, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, want)) lastMode = want;
 }
 
-bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win) {
+bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, float b) {
 	if (!dev || !win) return false;
 	SDL_GPUCommandBuffer* cmds = SDL_AcquireGPUCommandBuffer(dev);
 	if (!cmds) return false;
@@ -108,7 +108,7 @@ bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win) {
 		target.texture = tex;
 		target.load_op = SDL_GPU_LOADOP_CLEAR;
 		target.store_op = SDL_GPU_STOREOP_STORE;
-		target.clear_color = SDL_FColor{ 0.1f, 0.1f, 0.3f, 1.0f };
+		target.clear_color = SDL_FColor{ r, g, b, 1.0f };
 		SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmds, &target, 1, nullptr);
 		SDL_EndGPURenderPass(pass);
 	}

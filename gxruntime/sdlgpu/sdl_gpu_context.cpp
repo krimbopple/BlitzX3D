@@ -85,6 +85,14 @@ void ReleaseWindow(SDL_GPUDevice* dev, SDL_Window* win) {
 	SDL_ReleaseWindowFromGPUDevice(dev, win);
 }
 
+void SetVSync(SDL_GPUDevice* dev, SDL_Window* win, bool vsync) {
+	if (!dev || !win) return;
+	static SDL_GPUPresentMode lastMode = SDL_GPU_PRESENTMODE_VSYNC;
+	SDL_GPUPresentMode want = vsync ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_IMMEDIATE;
+	if (want == lastMode) return;
+	if (SDL_SetGPUSwapchainParameters(dev, win, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, want)) lastMode = want;
+}
+
 bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win) {
 	if (!dev || !win) return false;
 	SDL_GPUCommandBuffer* cmds = SDL_AcquireGPUCommandBuffer(dev);

@@ -21,6 +21,7 @@ void DestroyGPUDevice(SDL_GPUDevice* dev);
 bool ClaimWindow(SDL_GPUDevice* dev, SDL_Window* win);
 void ReleaseWindow(SDL_GPUDevice* dev, SDL_Window* win);
 bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win);
+void SetVSync(SDL_GPUDevice* dev, SDL_Window* win, bool vsync);
 
 }
 

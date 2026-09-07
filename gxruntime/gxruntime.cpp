@@ -461,6 +461,7 @@ void gxRuntime::flip(bool vwait) {
 	}
 
 	if (sdlGpu && sdlWindow) {
+		sdlgpu::SetVSync(sdlGpu, sdlWindow, vwait);
 		sdlgpu::PresentSwapchain(sdlGpu, sdlWindow);
 		return;
 	}

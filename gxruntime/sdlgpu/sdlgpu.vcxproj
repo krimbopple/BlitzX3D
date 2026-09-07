@@ -81,11 +81,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="sdl_gpu_context.cpp" />
+    <ClCompile Include="sdl_gpu_mesh.cpp" />
     <ClCompile Include="sdl_gpu_pipeline.cpp" />
     <ClCompile Include="sdl_gpu_texture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="sdl_gpu_context.h" />
+    <ClInclude Include="sdl_gpu_mesh.h" />
     <ClInclude Include="sdl_gpu_pipeline.h" />
     <ClInclude Include="sdl_gpu_texture.h" />
   </ItemGroup>

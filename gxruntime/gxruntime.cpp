@@ -478,7 +478,7 @@ void gxRuntime::flip(bool vwait) {
 				for (int x = 0; x < w; ++x) {
 					unsigned p = back->getPixelFast(x, y);
 					px[(size_t)y * (size_t)w + (size_t)x] =
-						((p >> 16) & 0xff) | ((p >> 8) & 0xff00) | ((p << 16) & 0xff0000) | (p & 0xff000000);
+						(p & 0xff00ff00) | ((p >> 16) & 0xff) | ((p << 16) & 0xff0000);
 				}
 			}
 			back->unlock();

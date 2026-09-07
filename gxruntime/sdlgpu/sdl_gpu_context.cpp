@@ -31,6 +31,10 @@ SDL_Window* CreateGameWindow(int clientW, int clientH, bool resizable, bool bord
 	SDL_Window* win = SDL_CreateWindow(title ? title : " ", clientW, clientH, flags);
 	if (!win) return nullptr;
 
+	if (HWND hwnd = (HWND)GetHWND(win)) {
+		SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, (LONG_PTR)GetStockObject(BLACK_BRUSH));
+	}
+
 	CenterWindow(win);
 	SDL_StartTextInput(win);
 	return win;

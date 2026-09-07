@@ -170,9 +170,6 @@
     <ClCompile Include="gxsound.cpp" />
     <ClCompile Include="gxtimer.cpp" />
     <ClCompile Include="gxutf8.cpp" />
-    <ClCompile Include="sdlgpu\sdl_gpu_context.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
     <ClCompile Include="std.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">std.h</PrecompiledHeaderFile>
@@ -204,8 +201,13 @@
     <ClInclude Include="gxsound.h" />
     <ClInclude Include="gxtimer.h" />
     <ClInclude Include="gxutf8.h" />
-    <ClInclude Include="sdlgpu\sdl_gpu_context.h" />
     <ClInclude Include="std.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="sdlgpu\sdlgpu.vcxproj">
+      <Project>{7b2e8f41-3c5d-4e6a-9f1b-8d2c4a6e0f53}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -15,6 +15,7 @@ void SetWindowTitle(SDL_Window* win, const char* title);
 void SizeWindowForClient(SDL_Window* win, int clientW, int clientH);
 void CenterWindow(SDL_Window* win);
 void ShowGameWindow(SDL_Window* win);
+void SetCursorVisible(bool vis);
 void PumpEvents(SDL_Window* win, ::gxRuntime* rt);
 int SdlScancodeToDIK(int sdlScancode);
 SDL_GPUDevice* CreateGPUDevice();

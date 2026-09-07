@@ -468,26 +468,31 @@ void gxRuntime::flip(bool vwait) {
 		float g = ((argb >> 8) & 0xff) / 255.0f;
 		float b = (argb & 0xff) / 255.0f;
 		gxCanvas* back = graphics ? graphics->getBackCanvas() : nullptr;
-		bool locked = back && back->lock();
 		bool blitted = false;
-		if (locked) {
+		if (back && back->lock()) {
 			int w = back->getWidth(), h = back->getHeight();
 			static std::vector<unsigned> px;
-			px.resize((size_t)w * (size_t)h);
-			for (int y = 0; y < h; ++y) {
-				for (int x = 0; x < w; ++x) {
-					unsigned p = back->getPixelFast(x, y);
-					px[(size_t)y * (size_t)w + (size_t)x] =
-						(p & 0xff00ff00) | ((p >> 16) & 0xff) | ((p << 16) & 0xff0000);
+			static int lastMod = -1;
+			static int lastW = 0, lastH = 0;
+			const void* up = nullptr;
+			if (back->getModify() != lastMod || w != lastW || h != lastH) {
+				px.resize((size_t)w * (size_t)h);
+				for (int y = 0; y < h; ++y) {
+					for (int x = 0; x < w; ++x) {
+						unsigned p = back->getPixelFast(x, y);
+						px[(size_t)y * (size_t)w + (size_t)x] =
+							(p & 0xff00ff00) | ((p >> 16) & 0xff) | ((p << 16) & 0xff0000);
+					}
 				}
+				up = px.data();
+				lastMod = back->getModify();
+				lastW = w;
+				lastH = h;
 			}
 			back->unlock();
-			blitted = sdlgpu::PresentBlit(sdlGpu, sdlWindow, r, g, b, (unsigned)w, (unsigned)h, px.data());
+			blitted = sdlgpu::PresentBlit(sdlGpu, sdlWindow, r, g, b, (unsigned)w, (unsigned)h, up);
 		}
-		if (!blitted) {
-			if (!locked) sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, 1.0f, 0.0f, 1.0f);
-			else sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, 1.0f, 0.5f, 0.0f);
-		}
+		if (!blitted) sdlgpu::PresentSwapchain(sdlGpu, sdlWindow, r, g, b);
 		return;
 	}
 
@@ -917,6 +922,11 @@ void gxRuntime::setPointerVisible(bool vis) {
 	pointer_visible = vis;
 	if(gfx_mode == GMODE_EXCLUSIVE) return;
 
+	if (usingSDLWindow()) {
+		sdlgpu::SetCursorVisible(vis);
+		return;
+	}
+
 	//force a WM_SETCURSOR
 	POINT pt;
 	GetCursorPos(&pt);
@@ -1233,6 +1243,7 @@ gxGraphics* gxRuntime::openGraphics(int w, int h, int d, int driver, int flags) 
 					sdlgpu::CenterWindow(win);
 					if (sdlGpu) sdlgpu::PresentSwapchain(sdlGpu, win, 0.0f, 0.0f, 0.0f);
 					sdlgpu::ShowGameWindow(win);
+					sdlgpu::SetCursorVisible(pointer_visible);
 				}
 				else {
 					sdlgpu::DestroyGameWindow(win);

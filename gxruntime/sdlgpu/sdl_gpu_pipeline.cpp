@@ -119,41 +119,48 @@ static bool EnsureBlit(SDL_GPUDevice* dev, SDL_Window* win, unsigned w, unsigned
 }
 
 bool PresentBlit(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, float b, unsigned w, unsigned h, const void* px) {
-	if (!dev || !win || !w || !h || !px) return false;
+	if (!dev || !win || !w || !h) return false;
 	if (!EnsureBlit(dev, win, w, h)) return false;
 
-	Uint32 size = w * h * 4;
-	SDL_GPUTransferBufferCreateInfo bufInfo{};
-	bufInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-	bufInfo.size = size;
-	SDL_GPUTransferBuffer* buf = SDL_CreateGPUTransferBuffer(dev, &bufInfo);
-	if (!buf) return false;
-	void* dst = SDL_MapGPUTransferBuffer(dev, buf, false);
-	if (!dst) { SDL_ReleaseGPUTransferBuffer(dev, buf); return false; }
-	memcpy(dst, px, size);
-	SDL_UnmapGPUTransferBuffer(dev, buf);
-
 	SDL_GPUCommandBuffer* cmds = SDL_AcquireGPUCommandBuffer(dev);
-	if (!cmds) { SDL_ReleaseGPUTransferBuffer(dev, buf); return false; }
+	if (!cmds) return false;
 
-	SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmds);
-	SDL_GPUTextureTransferInfo src{};
-	src.transfer_buffer = buf;
-	src.pixels_per_row = w;
-	src.rows_per_layer = h;
-	SDL_GPUTextureRegion reg{};
-	reg.texture = g_blitTex;
-	reg.w = w;
-	reg.h = h;
-	reg.d = 1;
-	SDL_UploadToGPUTexture(copy, &src, &reg, false);
-	SDL_EndGPUCopyPass(copy);
+	SDL_GPUTransferBuffer* buf = nullptr;
+	if (px) {
+		Uint32 size = w * h * 4;
+		SDL_GPUTransferBufferCreateInfo bufInfo{};
+		bufInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+		bufInfo.size = size;
+		buf = SDL_CreateGPUTransferBuffer(dev, &bufInfo);
+		if (!buf) { SDL_CancelGPUCommandBuffer(cmds); return false; }
+		void* dst = SDL_MapGPUTransferBuffer(dev, buf, false);
+		if (!dst) {
+			SDL_ReleaseGPUTransferBuffer(dev, buf);
+			SDL_CancelGPUCommandBuffer(cmds);
+			return false;
+		}
+		memcpy(dst, px, size);
+		SDL_UnmapGPUTransferBuffer(dev, buf);
+
+		SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmds);
+		SDL_GPUTextureTransferInfo src{};
+		src.transfer_buffer = buf;
+		src.pixels_per_row = w;
+		src.rows_per_layer = h;
+		SDL_GPUTextureRegion reg{};
+		reg.texture = g_blitTex;
+		reg.w = w;
+		reg.h = h;
+		reg.d = 1;
+		SDL_UploadToGPUTexture(copy, &src, &reg, false);
+		SDL_EndGPUCopyPass(copy);
+	}
 
 	SDL_GPUTexture* tex = nullptr;
 	Uint32 sw = 0, sh = 0;
 	if (!SDL_AcquireGPUSwapchainTexture(cmds, win, &tex, &sw, &sh)) {
 		SDL_CancelGPUCommandBuffer(cmds);
-		SDL_ReleaseGPUTransferBuffer(dev, buf);
+		if (buf) SDL_ReleaseGPUTransferBuffer(dev, buf);
 		return false;
 	}
 	if (tex) {
@@ -172,7 +179,7 @@ bool PresentBlit(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, float b,
 		SDL_EndGPURenderPass(pass);
 	}
 	bool ok = SDL_SubmitGPUCommandBuffer(cmds);
-	SDL_ReleaseGPUTransferBuffer(dev, buf);
+	if (buf) SDL_ReleaseGPUTransferBuffer(dev, buf);
 	return ok;
 }
 

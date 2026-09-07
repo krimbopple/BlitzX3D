@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
+#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_video.h>
 
@@ -71,6 +72,11 @@ void CenterWindow(SDL_Window* win) {
 void ShowGameWindow(SDL_Window* win) {
 	if (!win) return;
 	SDL_ShowWindow(win);
+}
+
+void SetCursorVisible(bool vis) {
+	if (vis) SDL_ShowCursor();
+	else SDL_HideCursor();
 }
 
 SDL_GPUDevice* CreateGPUDevice() {

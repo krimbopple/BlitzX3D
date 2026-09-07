@@ -1,4 +1,5 @@
 #include "sdl_gpu_context.h"
+#include "sdl_gpu_pipeline.h"
 
 #include "../std.h"
 
@@ -110,6 +111,7 @@ bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, flo
 		target.store_op = SDL_GPU_STOREOP_STORE;
 		target.clear_color = SDL_FColor{ r, g, b, 1.0f };
 		SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmds, &target, 1, nullptr);
+		DrawTrivial(dev, win, pass);
 		SDL_EndGPURenderPass(pass);
 	}
 	return SDL_SubmitGPUCommandBuffer(cmds);

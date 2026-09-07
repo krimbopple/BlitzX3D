@@ -13,6 +13,7 @@
 #include "bass.h"
 
 #include "sdlgpu/sdl_gpu_context.h"
+#include "sdlgpu/sdl_gpu_pipeline.h"
 
 static bool SetModernDPIAwareness() {
 	HMODULE hShcore = LoadLibraryW(L"shcore.dll");
@@ -839,6 +840,7 @@ void gxRuntime::pumpSDLWindowEvents() {
 }
 
 void gxRuntime::destroySDLWindow() {
+	sdlgpu::TeardownPipelines();
 	if (sdlGpu && sdlWindow) sdlgpu::ReleaseWindow(sdlGpu, sdlWindow);
 	if (sdlGpu) {
 		sdlgpu::DestroyGPUDevice(sdlGpu);

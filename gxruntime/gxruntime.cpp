@@ -1231,6 +1231,8 @@ gxGraphics* gxRuntime::openGraphics(int w, int h, int d, int driver, int flags) 
 					}
 					sdlgpu::SizeWindowForClient(win, w, h);
 					sdlgpu::CenterWindow(win);
+					if (sdlGpu) sdlgpu::PresentSwapchain(sdlGpu, win, 0.0f, 0.0f, 0.0f);
+					sdlgpu::ShowGameWindow(win);
 				}
 				else {
 					sdlgpu::DestroyGameWindow(win);

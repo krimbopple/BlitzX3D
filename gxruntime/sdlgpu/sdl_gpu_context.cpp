@@ -1,5 +1,4 @@
 #include "sdl_gpu_context.h"
-#include "sdl_gpu_pipeline.h"
 
 #include "../std.h"
 
@@ -24,7 +23,7 @@ static bool EnsureVideoInit() {
 SDL_Window* CreateGameWindow(int clientW, int clientH, bool resizable, bool borderless, const char* title) {
 	if (!EnsureVideoInit()) return nullptr;
 
-	SDL_WindowFlags flags = 0;
+	SDL_WindowFlags flags = SDL_WINDOW_HIDDEN;
 	if (resizable) flags |= SDL_WINDOW_RESIZABLE;
 	if (borderless) flags |= SDL_WINDOW_BORDERLESS;
 
@@ -67,6 +66,11 @@ void SizeWindowForClient(SDL_Window* win, int clientW, int clientH) {
 void CenterWindow(SDL_Window* win) {
 	if (!win) return;
 	SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+}
+
+void ShowGameWindow(SDL_Window* win) {
+	if (!win) return;
+	SDL_ShowWindow(win);
 }
 
 SDL_GPUDevice* CreateGPUDevice() {
@@ -115,7 +119,6 @@ bool PresentSwapchain(SDL_GPUDevice* dev, SDL_Window* win, float r, float g, flo
 		target.store_op = SDL_GPU_STOREOP_STORE;
 		target.clear_color = SDL_FColor{ r, g, b, 1.0f };
 		SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmds, &target, 1, nullptr);
-		DrawTrivial(dev, win, pass);
 		SDL_EndGPURenderPass(pass);
 	}
 	return SDL_SubmitGPUCommandBuffer(cmds);

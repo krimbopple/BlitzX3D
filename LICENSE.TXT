@@ -216,3 +216,80 @@ termination of rights and pursuit of injunctive relief, damages, or DMCA
 enforcement against distributions that fail to comply with those sections,
 irrespective of whether such failure occurs before, during, or after any
 period of Official Repository unavailability.
+
+
+15. PAID VERSION (PLACEHOLDER)
+
+(a) A paid version of BlitzX3D is planned.
+
+(b) The paid version is intended to provide an optional way for users and
+commercial developers to support continued BlitzX3D development.
+
+(c) The existence of a paid version does not revoke, restrict, or otherwise
+modify the rights granted to the Community edition under this license.
+
+(d) Users will not be required to purchase the paid version in order to use
+the Community edition or exercise the rights granted by this license.
+
+(e) The paid version may include additional features, improvements, tools,
+documentation, binaries, support, or other benefits.
+
+(f) Pricing, features, licensing terms, commercial use rights, updates,
+support, and other terms for the paid version will be published separately.
+
+(g) Until separate paid-version terms are published, this section creates no
+payment requirement or additional restriction on use of the Community edition.
+
+
+16. COMMERCIAL LICENSING (PLACEHOLDER)
+
+BlitzX3D may offer separate commercial licenses in the future.
+
+Commercial licenses may provide additional rights, features, support, or
+services for individuals, teams, studios, businesses, or other organizations.
+
+The specific terms and pricing of any commercial license will be published
+separately.
+
+Nothing in this section currently creates a commercial license or changes the
+rights granted by the Community edition.
+
+
+17. SUPPORT AND MAINTENANCE (PLACEHOLDER)
+
+BlitzX3D may offer optional support and maintenance services in the future.
+
+Such services may include priority support, compatibility fixes, bug fixes,
+documentation, consulting, or other development services.
+
+The availability, pricing, and terms of such services will be published
+separately.
+
+No support or maintenance commitment is created by this section.
+
+
+18. FUTURE EDITIONS (PLACEHOLDER)
+
+Additional editions of BlitzX3D may be created in the future.
+
+Different editions may contain different features, tools, support options,
+or licensing terms.
+
+Any separate edition will have its applicable licensing and commercial terms
+clearly identified.
+
+The creation of another edition does not revoke or restrict rights already
+granted to the Community edition under this license.
+
+
+19. PLACEHOLDER TERMS
+
+Sections identified as "(PLACEHOLDER)" are reserved for future terms and are
+informational only unless and until separate terms are published.
+
+Placeholder sections do not create additional payment requirements,
+restrictions, guarantees, or obligations.
+
+Future terms will not retroactively modify rights already granted under this
+license unless expressly permitted by the applicable license.
+

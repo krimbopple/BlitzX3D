@@ -25,6 +25,8 @@ struct TextQuad {
 
 bool QueueTextQuads(SDL_GPUDevice* dev, ::gxCanvas* atlas, bool smooth, unsigned canvasW, unsigned canvasH, const TextQuad* quads, unsigned count);
 bool QueueTextSolid(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, float dx, float dy, float dw, float dh, unsigned color);
+bool QueueRectFilled(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, float x, float y, float w, float h, unsigned color);
+bool QueueRectOutline(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, float x, float y, float w, float h, unsigned color);
 bool HasPendingText();
 bool PreparePendingText(SDL_GPUDevice* dev, SDL_GPUCommandBuffer* cmds);
 void DrawPendingText(SDL_GPUDevice* dev, SDL_Window* win, SDL_GPURenderPass* pass);

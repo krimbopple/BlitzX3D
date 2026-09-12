@@ -541,11 +541,43 @@ void gxCanvas::line(int x0, int y0, int x1, int y1) {
 
 static bool isRenderTarget(IDirect3DSurface9* s);
 
-void gxCanvas::rect(int x, int y, int w, int h, bool solid) {    
+static bool tryGpuRect(gxCanvas* self, int x, int y, int w, int h, unsigned argb, bool solid) {
+    if (!self || w <= 0 || h <= 0) return true;
+    gxGraphics* gfx = self->graphics;
+    if (!gfx || !gfx->runtime || !gfx->runtime->sdlGpu) return false;
+    if (self != gfx->getBackCanvas()) return false;
+    int cw = self->getWidth(), ch = self->getHeight();
+    if (cw <= 0 || ch <= 0) return false;
+    struct SDL_GPUDevice* dev = (struct SDL_GPUDevice*)gfx->runtime->sdlGpu;
+    int ox = 0, oy = 0, vx = 0, vy = 0, vw = 0, vh = 0;
+    self->getOrigin(&ox, &oy);
+    self->getViewport(&vx, &vy, &vw, &vh);
+    auto queueClipped = [&](int rx, int ry, int rw, int rh) -> bool {
+        int x0 = rx + ox, y0 = ry + oy, x1 = x0 + rw, y1 = y0 + rh;
+        if (x0 < vx) x0 = vx;
+        if (y0 < vy) y0 = vy;
+        if (x1 > vx + vw) x1 = vx + vw;
+        if (y1 > vy + vh) y1 = vy + vh;
+        if (x1 <= x0 || y1 <= y0) return true;
+        return sdlgpu::QueueRectFilled(dev, (unsigned)cw, (unsigned)ch,
+            (float)x0, (float)y0, (float)(x1 - x0), (float)(y1 - y0), argb);
+    };
+    if (solid) return queueClipped(x, y, w, h);
+    if (!queueClipped(x, y, w, 1)) return false;
+    if (!queueClipped(x, y + h - 1, w, 1)) return false;
+    if (h > 2) {
+        if (!queueClipped(x, y + 1, 1, h - 2)) return false;
+        if (w > 1 && !queueClipped(x + w - 1, y + 1, 1, h - 2)) return false;
+    }
+    return true;
+}
+
+void gxCanvas::rect(int x, int y, int w, int h, bool solid) {
+    unsigned argb = format.toARGB(color_surf);
+    if (tryGpuRect(this, x, y, w, h, argb, solid)) return;
     x += origin_x; y += origin_y;
     Rect dest(x, y, w, h);
     if (!clip(&dest)) return;
-    unsigned argb = format.toARGB(color_surf);
     if (solid) {
         fillRect(dest, argb);
         damage(dest);
@@ -562,6 +594,7 @@ void gxCanvas::rectBlend(int x, int y, int w, int h, unsigned argb) {
     unsigned tintA = (argb >> 24) & 0xff;
     if (tintA == 255) { rect(x, y, w, h, true); return; }
     if (tintA == 0 || w <= 0 || h <= 0) return;
+    if (tryGpuRect(this, x, y, w, h, argb, true)) return;
     x += origin_x; y += origin_y;
     Rect dest_r(x, y, w, h);
     if (!clip(&dest_r)) return;

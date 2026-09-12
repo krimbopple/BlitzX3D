@@ -384,6 +384,24 @@ bool QueueTextSolid(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, floa
 	return true;
 }
 
+bool QueueRectFilled(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, float x, float y, float w, float h, unsigned color) {
+	if (w <= 0.0f || h <= 0.0f) return true;
+	return QueueTextSolid(dev, canvasW, canvasH, x, y, w, h, color);
+}
+
+bool QueueRectOutline(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, float x, float y, float w, float h, unsigned color) {
+	if (w <= 0.0f || h <= 0.0f) return true;
+	if (!QueueTextSolid(dev, canvasW, canvasH, x, y, w, 1.0f, color)) return false;
+	if (h > 1.0f) {
+		if (!QueueTextSolid(dev, canvasW, canvasH, x, y + h - 1.0f, w, 1.0f, color)) return false;
+		if (h > 2.0f) {
+			if (!QueueTextSolid(dev, canvasW, canvasH, x, y + 1.0f, 1.0f, h - 2.0f, color)) return false;
+			if (w > 1.0f && !QueueTextSolid(dev, canvasW, canvasH, x + w - 1.0f, y + 1.0f, 1.0f, h - 2.0f, color)) return false;
+		}
+	}
+	return true;
+}
+
 bool HasPendingText() {
 	for (auto& g : g_pending) {
 		if (!g.quads.empty()) return true;

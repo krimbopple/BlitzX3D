@@ -102,11 +102,9 @@ struct CachedTexture::Rep {
 			}
 		}
 
-		void* fib32 = job ? job->fib32 : nullptr;
-		int iw = job ? job->w : 0;
-		int ih = job ? job->h : 0;
+		DecodedImage* img = job ? job->image.get() : nullptr;
 
-		if (!fib32) {
+		if (!img) {
 			failed = true;
 			cancelJob();
 			materialized = true;
@@ -126,10 +124,8 @@ struct CachedTexture::Rep {
 
 		if (!(flags & gxCanvas::CANVAS_TEX_CUBE)) {
 			if (w <= 0 || h <= 0 || first < 0 || requested_cnt <= 0) {
-				if (fib32) {
-					if (gxCanvas* t = gx_graphics->createCanvasFromImage(fib32, iw, ih, flags)) {
-						frames.push_back(t);
-					}
+				if (gxCanvas* t = gx_graphics->createCanvasFromImage(img, flags)) {
+					frames.push_back(t);
 				}
 				if (frames.empty()) failed = true;
 				cancelJob();
@@ -138,7 +134,7 @@ struct CachedTexture::Rep {
 			}
 		}
 
-		gxCanvas* t = gx_graphics->createCanvasFromImage(fib32, iw, ih, t_flags);
+		gxCanvas* t = gx_graphics->createCanvasFromImage(img, t_flags);
 		if (!t) {
 			failed = true;
 			cancelJob();

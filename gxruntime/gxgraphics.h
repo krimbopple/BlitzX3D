@@ -18,6 +18,7 @@
 
 class gxRuntime;
 class gxEffect;
+struct DecodedImage;
 
 class gxGraphics {
 public:
@@ -114,7 +115,7 @@ public:
 	//OBJECTS
 	gxCanvas* createCanvas(int width, int height, int flags);
 	gxCanvas* loadCanvas(const std::string& file, int flags);
-	gxCanvas* createCanvasFromImage(void* fib32, int w, int h, int flags);
+	gxCanvas* createCanvasFromImage(const DecodedImage* img, int flags);
 	gxCanvas* verifyCanvas(gxCanvas* canvas);
 	void freeCanvas(gxCanvas* canvas);
 

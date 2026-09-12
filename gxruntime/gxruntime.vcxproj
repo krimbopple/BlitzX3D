@@ -88,7 +88,7 @@
       <MinimalRebuild>false</MinimalRebuild>
       <CallingConvention>StdCall</CallingConvention>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)packages\FreeImageNative.3.17.0\build\native\include\;..\ffmpeg\include;$(DXSDK_DIR)Include;$(ProjectDir);..\freetype\include;..\bass\include;$(ProjectDir)..\vendor\SDL3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)vendor\SDL_image\include\;..\ffmpeg\include;$(DXSDK_DIR)Include;$(ProjectDir);..\freetype\include;..\bass\include;$(ProjectDir)..\vendor\SDL3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
@@ -123,7 +123,7 @@
       <ProgramDataBaseFileName>.\Debug\</ProgramDataBaseFileName>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CallingConvention>StdCall</CallingConvention>
-      <AdditionalIncludeDirectories>$(SolutionDir)packages\FreeImageNative.3.17.0\build\native\include\;..\ffmpeg\include;$(DXSDK_DIR)Include;$(ProjectDir);..\freetype\include;..\bass\include;$(ProjectDir)..\vendor\SDL3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)vendor\SDL_image\include\;..\ffmpeg\include;$(DXSDK_DIR)Include;$(ProjectDir);..\freetype\include;..\bass\include;$(ProjectDir)..\vendor\SDL3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -138,7 +138,7 @@
     <Lib>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <OutputFile>.\Debug\gxruntime.lib</OutputFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)packages\FreeImageNative.3.17.0\build\native\lib\Win32\;$(DXSDK_DIR)Lib\x86</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(DXSDK_DIR)Lib\x86</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -214,14 +214,5 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\packages\FreeImageNative.redist.3.17.0\build\native\FreeImageNative.redist.targets" Condition="Exists('..\packages\FreeImageNative.redist.3.17.0\build\native\FreeImageNative.redist.targets')" />
-    <Import Project="..\packages\FreeImageNative.3.17.0\build\native\FreeImageNative.targets" Condition="Exists('..\packages\FreeImageNative.3.17.0\build\native\FreeImageNative.targets')" />
   </ImportGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\FreeImageNative.redist.3.17.0\build\native\FreeImageNative.redist.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\FreeImageNative.redist.3.17.0\build\native\FreeImageNative.redist.targets'))" />
-    <Error Condition="!Exists('..\packages\FreeImageNative.3.17.0\build\native\FreeImageNative.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\FreeImageNative.3.17.0\build\native\FreeImageNative.targets'))" />
-  </Target>
 </Project>

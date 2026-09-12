@@ -4,6 +4,7 @@
 #include <d3d9.h>
 
 class gxGraphics;
+struct DecodedImage;
 
 struct ddUtil {
 
@@ -24,11 +25,9 @@ struct ddUtil {
     static IDirect3DTexture9* loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx, bool renderTarget);
     static IDirect3DTexture9* loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH);
 
-    static bool decodeImageFile(const std::string& file, void** out32, int* outW, int* outH);
-    static IDirect3DTexture9* textureFromDecoded(void* fib32, int w, int h, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH);
+    static IDirect3DTexture9* textureFromDecoded(const DecodedImage* img, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH);
 
     static bool hasActualAlpha(const std::string& file);
-    static bool hasAlphaChannel(const std::string& file);
     static const std::string& getLastImageError();
 };
 

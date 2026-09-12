@@ -5,8 +5,6 @@
 
 #include "../gxruntime/gxutf8.h"
 
-#include <freeimage.h>
-
 #include <sstream>
 #include <shellapi.h>
 
@@ -170,7 +168,7 @@ gxRuntime::gxRuntime(HINSTANCE hi, const std::string& cl, HWND hw) :
 
 	CoInitialize(0);
 
-	FreeImage_Initialise(true);
+
 
 	memset(&d3ddmEx, 0, sizeof(d3ddmEx));
 	d3ddmEx.Size = sizeof(D3DDISPLAYMODEEX);
@@ -219,7 +217,7 @@ gxRuntime::~gxRuntime() {
 	DestroyWindow(hwnd);
 	UnregisterClass("Blitz Runtime Class", hinst);
 
-	FreeImage_DeInitialise();
+
 
 	CoUninitialize();
 }

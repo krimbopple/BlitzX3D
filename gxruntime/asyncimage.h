@@ -3,13 +3,20 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-extern std::mutex g_freeimage_mutex;
+struct DecodedImage {
+	int w = 0, h = 0;
+	std::vector<uint8_t> rgba;
+	bool hasAlpha = false;
+};
+
+std::unique_ptr<DecodedImage> DecodeImageFile(const std::string& file, std::string* err = nullptr);
 
 class AsyncImageLoader {
 public:
@@ -23,12 +30,11 @@ public:
 
 	struct Job {
 		std::string file;
-		void* fib32;
-		int w, h;
+		std::unique_ptr<DecodedImage> image;
 		std::atomic<int> state;
 
-		Job() : fib32(nullptr), w(0), h(0), state(STATE_QUEUED) {}
-		explicit Job(const std::string& f) : file(f), fib32(nullptr), w(0), h(0), state(STATE_QUEUED) {}
+		Job() : state(STATE_QUEUED) {}
+		explicit Job(const std::string& f) : file(f), state(STATE_QUEUED) {}
 	};
 
 	static AsyncImageLoader& instance();

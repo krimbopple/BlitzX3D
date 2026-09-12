@@ -482,16 +482,73 @@ void gxCanvas::setViewport(int x, int y, int w, int h) {
     viewport = r;
 }
 
+struct GpuBack {
+    struct SDL_GPUDevice* dev = nullptr;
+    int cw = 0, ch = 0, vx = 0, vy = 0, vw = 0, vh = 0;
+};
+
+static bool gpuBackbuffer(gxCanvas* self, GpuBack& out) {
+    if (!self) return false;
+    gxGraphics* gfx = self->graphics;
+    if (!gfx || !gfx->runtime || !gfx->runtime->sdlGpu) return false;
+    if (self != gfx->getBackCanvas()) return false;
+    int cw = self->getWidth(), ch = self->getHeight();
+    if (cw <= 0 || ch <= 0) return false;
+    out.dev = (struct SDL_GPUDevice*)gfx->runtime->sdlGpu;
+    out.cw = cw;
+    out.ch = ch;
+    self->getViewport(&out.vx, &out.vy, &out.vw, &out.vh);
+    return true;
+}
+
+static bool queueAbsRun(const GpuBack& b, int x0, int y0, int x1, int y1, unsigned argb) {
+    if (x0 < b.vx) x0 = b.vx;
+    if (y0 < b.vy) y0 = b.vy;
+    if (x1 > b.vx + b.vw) x1 = b.vx + b.vw;
+    if (y1 > b.vy + b.vh) y1 = b.vy + b.vh;
+    if (x1 <= x0 || y1 <= y0) return true;
+    return sdlgpu::QueueRectFilled(b.dev, (unsigned)b.cw, (unsigned)b.ch,
+        (float)x0, (float)y0, (float)(x1 - x0), (float)(y1 - y0), argb);
+}
+
+static bool tryGpuRect(gxCanvas* self, int x, int y, int w, int h, unsigned argb, bool solid) {
+    if (!self || w <= 0 || h <= 0) return true;
+    GpuBack b;
+    if (!gpuBackbuffer(self, b)) return false;
+    int ox = 0, oy = 0;
+    self->getOrigin(&ox, &oy);
+    auto queueClipped = [&](int rx, int ry, int rw, int rh) -> bool {
+        return queueAbsRun(b, rx + ox, ry + oy, rx + ox + rw, ry + oy + rh, argb);
+    };
+    if (solid) return queueClipped(x, y, w, h);
+    if (!queueClipped(x, y, w, 1)) return false;
+    if (!queueClipped(x, y + h - 1, w, 1)) return false;
+    if (h > 2) {
+        if (!queueClipped(x, y + 1, 1, h - 2)) return false;
+        if (w > 1 && !queueClipped(x + w - 1, y + 1, 1, h - 2)) return false;
+    }
+    return true;
+}
+
 void gxCanvas::cls() {
-    fillRect(viewport, format.toARGB(clsColor_surf));
+    unsigned argb = format.toARGB(clsColor_surf);
+    if (((argb >> 24) & 0xff) == 255) {
+        GpuBack b;
+        if (gpuBackbuffer(this, b)) {
+            if (queueAbsRun(b, viewport.left, viewport.top, viewport.right, viewport.bottom, argb)) return;
+        }
+    }
+    fillRect(viewport, argb);
     damage(viewport);
 }
 
 void gxCanvas::plot(int x, int y) {
+    unsigned argb = format.toARGB(color_surf);
+    if (tryGpuRect(this, x, y, 1, 1, argb, true)) return;
     x += origin_x; if (x < viewport.left || x >= viewport.right)  return;
     y += origin_y; if (y < viewport.top || y >= viewport.bottom) return;
     Rect dest(x, y, 1, 1);
-    fillRect(dest, format.toARGB(color_surf));
+    fillRect(dest, argb);
     damage(dest);
 }
 
@@ -522,11 +579,22 @@ void gxCanvas::line(int x0, int y0, int x1, int y1) {
         if ((clip1 & 8) == 8) { y1 = y0 + ((y1 - y0) * (cx0 - x0)) / (x1 - x0); x1 = cx0; continue; }
     }
     dx = x1 - x0; dy = y1 - y0;
-    if ((dx | dy) == 0) { setPixel(x0, y0, color_argb); return; }
+    if ((dx | dy) == 0) { plot(x0 - origin_x, y0 - origin_y); return; }
+    if (dx == 0 || dy == 0) {
+        GpuBack b;
+        if (gpuBackbuffer(this, b)) {
+            int lx0 = dx == 0 ? x0 : (x0 < x1 ? x0 : x1);
+            int ly0 = dy == 0 ? y0 : (y0 < y1 ? y0 : y1);
+            int lx1 = dx == 0 ? x0 + 1 : (x0 < x1 ? x1 + 1 : x0 + 1);
+            int ly1 = dy == 0 ? y0 + 1 : (y0 < y1 ? y1 + 1 : y0 + 1);
+            if (queueAbsRun(b, lx0, ly0, lx1, ly1, format.toARGB(color_surf))) return;
+        }
+    }
     if (dx >= 0) { sx = 1; ax = dx; }
     else { sx = -1; ax = -dx; }
     if (dy >= 0) { sy = 1; ay = dy; }
     else { sy = -1; ay = -dy; }
+    int px0 = x0, py0 = y0, px1 = x1, py1 = y1;
     lock();
     if (ax > ay) {
         ddf = -ax; sadj = ax + ax; padj = ay + ay;
@@ -537,39 +605,40 @@ void gxCanvas::line(int x0, int y0, int x1, int y1) {
         while (ay-- >= 0) { setPixelFast(x0, y0, color_argb); y0 += sy; ddf += padj; if (ddf >= 0) { x0 += sx; ddf -= sadj; } }
     }
     unlock();
+    Rect dmg(px0 < px1 ? px0 : px1, py0 < py1 ? py0 : py1,
+        (px0 < px1 ? px1 : px0) - (px0 < px1 ? px0 : px1) + 1,
+        (py0 < py1 ? py1 : py0) - (py0 < py1 ? py0 : py1) + 1);
+    damage(dmg);
 }
 
 static bool isRenderTarget(IDirect3DSurface9* s);
 
-static bool tryGpuRect(gxCanvas* self, int x, int y, int w, int h, unsigned argb, bool solid) {
-    if (!self || w <= 0 || h <= 0) return true;
+
+static bool tryGpuSprite(gxCanvas* self, const RECT& dest_r, gxCanvas* src, const RECT& src_r, unsigned tint, bool smooth) {
+    if (!self || !src || src == self) return false;
+    if (dest_r.right <= dest_r.left || dest_r.bottom <= dest_r.top) return true;
+    if (src_r.right <= src_r.left || src_r.bottom <= src_r.top) return true;
     gxGraphics* gfx = self->graphics;
     if (!gfx || !gfx->runtime || !gfx->runtime->sdlGpu) return false;
     if (self != gfx->getBackCanvas()) return false;
-    int cw = self->getWidth(), ch = self->getHeight();
-    if (cw <= 0 || ch <= 0) return false;
+    if (self->get2DEffect()) return false;
     struct SDL_GPUDevice* dev = (struct SDL_GPUDevice*)gfx->runtime->sdlGpu;
-    int ox = 0, oy = 0, vx = 0, vy = 0, vw = 0, vh = 0;
-    self->getOrigin(&ox, &oy);
-    self->getViewport(&vx, &vy, &vw, &vh);
-    auto queueClipped = [&](int rx, int ry, int rw, int rh) -> bool {
-        int x0 = rx + ox, y0 = ry + oy, x1 = x0 + rw, y1 = y0 + rh;
-        if (x0 < vx) x0 = vx;
-        if (y0 < vy) y0 = vy;
-        if (x1 > vx + vw) x1 = vx + vw;
-        if (y1 > vy + vh) y1 = vy + vh;
-        if (x1 <= x0 || y1 <= y0) return true;
-        return sdlgpu::QueueRectFilled(dev, (unsigned)cw, (unsigned)ch,
-            (float)x0, (float)y0, (float)(x1 - x0), (float)(y1 - y0), argb);
-    };
-    if (solid) return queueClipped(x, y, w, h);
-    if (!queueClipped(x, y, w, 1)) return false;
-    if (!queueClipped(x, y + h - 1, w, 1)) return false;
-    if (h > 2) {
-        if (!queueClipped(x, y + 1, 1, h - 2)) return false;
-        if (w > 1 && !queueClipped(x + w - 1, y + 1, 1, h - 2)) return false;
-    }
-    return true;
+    struct SDL_GPUTexture* tex = (struct SDL_GPUTexture*)sdlgpu::GetCanvasTexture(dev, src);
+    if (!tex) return false;
+    int cw = self->getWidth(), ch = self->getHeight();
+    int tw = src->getWidth(), th = src->getHeight();
+    if (cw <= 0 || ch <= 0 || tw <= 0 || th <= 0) return false;
+    sdlgpu::TextQuad q{};
+    q.destX = (float)dest_r.left;
+    q.destY = (float)dest_r.top;
+    q.destW = (float)(dest_r.right - dest_r.left);
+    q.destH = (float)(dest_r.bottom - dest_r.top);
+    q.srcX = (float)src_r.left;
+    q.srcY = (float)src_r.top;
+    q.srcW = (float)(src_r.right - src_r.left);
+    q.srcH = (float)(src_r.bottom - src_r.top);
+    q.color = tint;
+    return sdlgpu::QueueSpriteQuad(dev, tex, smooth, (unsigned)cw, (unsigned)ch, (unsigned)tw, (unsigned)th, &q);
 }
 
 void gxCanvas::rect(int x, int y, int w, int h, bool solid) {
@@ -686,7 +755,57 @@ void gxCanvas::rectBlend(int x, int y, int w, int h, unsigned argb) {
     if (ownBatch) endBlitBatch();
 }
 
+static bool tryGpuOval(gxCanvas* self, int x1, int y1, int w, int h, unsigned argb, bool solid) {
+    if (!self || w <= 0 || h <= 0) return true;
+    GpuBack b;
+    if (!gpuBackbuffer(self, b)) return false;
+    int ox = 0, oy = 0;
+    self->getOrigin(&ox, &oy);
+    x1 += ox; y1 += oy;
+    int dx0 = x1 < b.vx ? b.vx : x1;
+    int dy0 = y1 < b.vy ? b.vy : y1;
+    int dx1 = x1 + w > b.vx + b.vw ? b.vx + b.vw : x1 + w;
+    int dy1 = y1 + h > b.vy + b.vh ? b.vy + b.vh : y1 + h;
+    if (dx1 <= dx0 || dy1 <= dy0) return true;
+    float xr = w * .5f, yr = h * .5f, ar = (float)w / (float)h;
+    float cx = x1 + xr + .5f, cy = y1 + yr - .5f, rsq = yr * yr;
+    if (solid) {
+        float y = (float)dy0 - cy;
+        for (int t = dy0; t < dy1; ++y, ++t) {
+            float x = sqrtf(rsq - y * y) * ar;
+            int xa = (int)floor(cx - x), xb = (int)floor(cx + x);
+            if (xb <= xa) continue;
+            if (!queueAbsRun(b, xa, t, xb, t + 1, argb)) return false;
+        }
+        return true;
+    }
+    int p_xa, p_xb, t, hh = (int)floor(cy);
+    float y;
+    p_xa = p_xb = (int)cx;
+    t = dy0; y = (float)t - cy;
+    if (dy0 > y1) { --t; --y; }
+    for (; t <= hh; ++y, ++t) {
+        float x = sqrtf(rsq - y * y) * ar;
+        int xa = (int)floor(cx - x), xb = (int)floor(cx + x);
+        if (!queueAbsRun(b, xa, t, p_xa > xa + 1 ? p_xa : xa + 1, t + 1, argb)) return false;
+        if (!queueAbsRun(b, p_xb, t, xb > p_xb + 1 ? xb : p_xb + 1, t + 1, argb)) return false;
+        p_xa = xa; p_xb = xb;
+    }
+    p_xa = p_xb = (int)cx;
+    t = dy1 - 1; y = (float)t - cy;
+    if (dy1 < y1 + h) { ++t; ++y; }
+    for (; t > hh; --y, --t) {
+        float x = sqrtf(rsq - y * y) * ar;
+        int xa = (int)floor(cx - x), xb = (int)floor(cx + x);
+        if (!queueAbsRun(b, xa, t, p_xa > xa + 1 ? p_xa : xa + 1, t + 1, argb)) return false;
+        if (!queueAbsRun(b, p_xb, t, xb > p_xb + 1 ? xb : p_xb + 1, t + 1, argb)) return false;
+        p_xa = xa; p_xb = xb;
+    }
+    return true;
+}
+
 void gxCanvas::oval(int x1, int y1, int w, int h, bool solid) {
+    if (tryGpuOval(this, x1, y1, w, h, format.toARGB(color_surf), solid)) return;
     x1 += origin_x; y1 += origin_y;
     Rect dest(x1, y1, w, h);
     if (!clip(&dest)) return;
@@ -1168,6 +1287,8 @@ void gxCanvas::blit(int x, int y, gxCanvas* src, int src_x, int src_y,
     if (!clip(&dest_r, &src_r)) return;
     if (!::clip(src->clip_rect, &src_r, &dest_r)) return;
 
+    if (solid && tryGpuSprite(this, dest_r, src, src_r, 0xffffffff, false)) return;
+
     if (solid) {
         D3DSURFACE_DESC srcDesc, dstDesc;
         if (SUCCEEDED(src->surf->GetDesc(&srcDesc)) && SUCCEEDED(surf->GetDesc(&dstDesc))) {
@@ -1247,6 +1368,8 @@ void gxCanvas::blitstretch(int x, int y, int w, int h,
     src_r.bottom = src_y + clipBottom * src_h / h;
 
     if (!::clip(src->clip_rect, &src_r)) return;
+
+    if (!src->hasMask() && tryGpuSprite(this, dest_r, src, src_r, 0xffffffff, true)) return;
 
     if (!isRenderTarget(surf)) {
         cpuBlit(this, dest_r, src, src_r, solid);
@@ -1387,6 +1510,8 @@ void gxCanvas::blitAlpha(int x, int y, gxCanvas* src,
 
     if (!clip(&dest_r, &src_r)) return;
     if (!::clip(src->clip_rect, &src_r, &dest_r)) return;
+
+    if (tryGpuSprite(this, dest_r, src, src_r, color_argb, filter)) return;
 
     if (!isRenderTarget(surf)) {
         cpuBlitAlpha(this, dest_r, src, src_r, color_argb);
@@ -1644,6 +1769,8 @@ void gxCanvas::setPixel(int x, int y, unsigned argb) {
     lock();
     setPixelFast(x, y, argb);
     unlock();
+    Rect dmg(x, y, 1, 1);
+    damage(dmg);
 }
 
 unsigned gxCanvas::getPixel(int x, int y) const {

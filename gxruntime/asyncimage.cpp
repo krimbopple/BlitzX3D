@@ -1,37 +1,84 @@
 #include "std.h"
 #include "asyncimage.h"
 
-#include <freeimage.h>
-#include <chrono>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 
-std::mutex g_freeimage_mutex;
+#include <chrono>
 
 AsyncImageLoader& AsyncImageLoader::instance() {
 	static AsyncImageLoader loader;
 	return loader;
 }
 
-static FIBITMAP* decodeTo32(const std::string& file, int* w, int* h) {
-	FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(file.c_str(), 0);
-	if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(file.c_str());
-	if (fif == FIF_UNKNOWN) return nullptr;
+std::unique_ptr<DecodedImage> DecodeImageFile(const std::string& file, std::string* err) {
+	auto fail = [&](const char* what) -> std::unique_ptr<DecodedImage> {
+		if (err) {
+			*err = std::string(what) + ": " + file + " (" + SDL_GetError() + ")";
+			SDL_ClearError();
+		}
+		return nullptr;
+	};
 
-	FIBITMAP* fib = FreeImage_Load(fif, file.c_str(), 0);
-	if (!fib) return nullptr;
+	SDL_Surface* surf = IMG_Load(file.c_str());
+	if (!surf) return fail("Load failed");
 
-	FIBITMAP* fib32;
-	if (FreeImage_GetBPP(fib) == 32) {
-		fib32 = fib;
+	SDL_Surface* cvt = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
+	if (!cvt) {
+		SDL_DestroySurface(surf);
+		return fail("Convert failed");
 	}
-	else {
-		fib32 = FreeImage_ConvertTo32Bits(fib);
-		FreeImage_Unload(fib);
-	}
-	if (!fib32) return nullptr;
 
-	*w = FreeImage_GetWidth(fib32);
-	*h = FreeImage_GetHeight(fib32);
-	return fib32;
+	int w = cvt->w, h = cvt->h;
+	if (w <= 0 || h <= 0) {
+		SDL_DestroySurface(cvt);
+		SDL_DestroySurface(surf);
+		return fail("Empty image");
+	}
+
+	auto img = std::make_unique<DecodedImage>();
+	img->w = w;
+	img->h = h;
+	img->rgba.resize((size_t)w * (size_t)h * 4);
+
+	Uint8 keyR = 0, keyG = 0, keyB = 0;
+	bool hasKey = false;
+	if (SDL_SurfaceHasColorKey(surf)) {
+		Uint32 key = 0;
+		if (SDL_GetSurfaceColorKey(surf, &key)) {
+			if (SDL_Palette* pal = SDL_GetSurfacePalette(surf)) {
+				if (key < (Uint32)pal->ncolors) {
+					keyR = pal->colors[key].r;
+					keyG = pal->colors[key].g;
+					keyB = pal->colors[key].b;
+					hasKey = true;
+				}
+			} else if (const SDL_PixelFormatDetails* det = SDL_GetPixelFormatDetails(surf->format)) {
+				SDL_GetRGB(key, det, nullptr, &keyR, &keyG, &keyB);
+				hasKey = true;
+			}
+		}
+	}
+
+	bool hasAlpha = false;
+	for (int y = 0; y < h; ++y) {
+		const Uint8* src = (const Uint8*)cvt->pixels + (size_t)y * cvt->pitch;
+		Uint8* dst = img->rgba.data() + (size_t)y * w * 4;
+		for (int x = 0; x < w; ++x) {
+			Uint8 r = src[x * 4 + 0], g = src[x * 4 + 1], b = src[x * 4 + 2], a = src[x * 4 + 3];
+			if (hasKey && r == keyR && g == keyG && b == keyB) a = 0;
+			if (a != 255) hasAlpha = true;
+			dst[x * 4 + 0] = r;
+			dst[x * 4 + 1] = g;
+			dst[x * 4 + 2] = b;
+			dst[x * 4 + 3] = a;
+		}
+	}
+	img->hasAlpha = hasAlpha;
+
+	SDL_DestroySurface(cvt);
+	SDL_DestroySurface(surf);
+	return img;
 }
 
 AsyncImageLoader::AsyncImageLoader() :
@@ -74,31 +121,16 @@ void AsyncImageLoader::worker() {
 			job->state.store(STATE_DECODING);
 		}
 
-		int w = 0, h = 0;
-		FIBITMAP* fib;
-		{
-			std::unique_lock<std::mutex> lock(g_freeimage_mutex);
-			fib = decodeTo32(job->file, &w, &h);
-		}
+		auto img = DecodeImageFile(job->file);
 
 		std::unique_lock<std::mutex> lock(mutex);
 		if (job->state.load() == STATE_CANCELLED) {
 			--inFlight;
-			if (fib) {
-				std::unique_lock<std::mutex> fim(g_freeimage_mutex);
-				FreeImage_Unload(fib);
-			}
 			cv.notify_all();
 			continue;
 		}
-		if (fib) {
-			if (job->fib32) {
-				std::unique_lock<std::mutex> fim(g_freeimage_mutex);
-				FreeImage_Unload((FIBITMAP*)job->fib32);
-			}
-			job->fib32 = fib;
-			job->w = w;
-			job->h = h;
+		if (img) {
+			job->image = std::move(img);
 			job->state.store(STATE_DONE);
 		}
 		else {
@@ -120,22 +152,11 @@ void AsyncImageLoader::wait(const std::shared_ptr<Job>& job) {
 		job->state.store(STATE_DECODING);
 		lock.unlock();
 
-		int w = 0, h = 0;
-		FIBITMAP* fib;
-		{
-			std::unique_lock<std::mutex> fim(g_freeimage_mutex);
-			fib = decodeTo32(job->file, &w, &h);
-		}
+		auto img = DecodeImageFile(job->file);
 
 		lock.lock();
-		if (fib) {
-			if (job->fib32) {
-				std::unique_lock<std::mutex> fim(g_freeimage_mutex);
-				FreeImage_Unload((FIBITMAP*)job->fib32);
-			}
-			job->fib32 = fib;
-			job->w = w;
-			job->h = h;
+		if (img) {
+			job->image = std::move(img);
 			job->state.store(STATE_DONE);
 		}
 		else {
@@ -164,13 +185,6 @@ void AsyncImageLoader::cancel(const std::shared_ptr<Job>& job) {
 			break;
 		}
 	}
-	int s = job->state.load();
-	if (s == STATE_DONE || s == STATE_FAILED) {
-		if (job->fib32) {
-			std::unique_lock<std::mutex> fim(g_freeimage_mutex);
-			FreeImage_Unload((FIBITMAP*)job->fib32);
-			job->fib32 = nullptr;
-		}
-	}
+	job->image.reset();
 	job->state.store(STATE_CANCELLED);
 }

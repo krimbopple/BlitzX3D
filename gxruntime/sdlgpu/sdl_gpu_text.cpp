@@ -37,13 +37,13 @@ struct PendingQuad {
 	unsigned color = 0xffffffff;
 };
 
-struct PendingGroup {
+struct PendingItem {
 	::gxCanvas* atlas = nullptr;
 	SDL_GPUTexture* tex = nullptr;
 	bool smooth = true;
 	unsigned canvasW = 1;
 	unsigned canvasH = 1;
-	std::vector<PendingQuad> quads;
+	PendingQuad quad;
 };
 
 struct DrawRange {
@@ -64,7 +64,7 @@ SDL_GPUDevice* g_textVbDev = nullptr;
 SDL_GPUBuffer* g_textVb = nullptr;
 unsigned g_textVbCap = 0;
 
-std::vector<PendingGroup> g_pending;
+std::vector<PendingItem> g_pending;
 std::vector<TextVertex> g_staged;
 std::vector<DrawRange> g_ranges;
 
@@ -272,13 +272,6 @@ bool EnsureTextPipe(SDL_GPUDevice* dev, SDL_Window* win) {
 	return true;
 }
 
-PendingGroup* FindGroup(::gxCanvas* atlas, SDL_GPUTexture* tex, bool smooth, unsigned canvasW, unsigned canvasH) {
-	for (auto& g : g_pending) {
-		if (g.atlas == atlas && g.tex == tex && g.smooth == smooth && g.canvasW == canvasW && g.canvasH == canvasH) return &g;
-	}
-	return nullptr;
-}
-
 void EmitQuad(std::vector<TextVertex>& out, unsigned canvasW, unsigned canvasH, const PendingQuad& q) {
 	float sx = 2.0f / (float)canvasW;
 	float sy = 2.0f / (float)canvasH;
@@ -324,32 +317,25 @@ bool QueueTextQuads(SDL_GPUDevice* dev, ::gxCanvas* atlas, bool smooth, unsigned
 	unsigned atlasW = (unsigned)atlas->getWidth();
 	unsigned atlasH = (unsigned)atlas->getHeight();
 	if (!atlasW || !atlasH) return false;
-	PendingGroup* g = FindGroup(atlas, tex, smooth, canvasW, canvasH);
-	if (!g) {
-		g_pending.push_back(PendingGroup{});
-		g = &g_pending.back();
-		g->atlas = atlas;
-		g->tex = tex;
-		g->smooth = smooth;
-		g->canvasW = canvasW;
-		g->canvasH = canvasH;
-	} else if (g->tex != tex) {
-		g->tex = tex;
-	}
 	for (unsigned i = 0; i < count; ++i) {
 		const TextQuad& q = quads[i];
 		if (q.destW <= 0.0f || q.destH <= 0.0f || q.srcW <= 0.0f || q.srcH <= 0.0f) continue;
-		PendingQuad p{};
-		p.dx = q.destX;
-		p.dy = q.destY;
-		p.dw = q.destW;
-		p.dh = q.destH;
-		p.u0 = q.srcX / (float)atlasW;
-		p.v0 = q.srcY / (float)atlasH;
-		p.u1 = (q.srcX + q.srcW) / (float)atlasW;
-		p.v1 = (q.srcY + q.srcH) / (float)atlasH;
-		p.color = PackTextColor(q.color);
-		g->quads.push_back(p);
+		PendingItem item{};
+		item.atlas = atlas;
+		item.tex = tex;
+		item.smooth = smooth;
+		item.canvasW = canvasW;
+		item.canvasH = canvasH;
+		item.quad.dx = q.destX;
+		item.quad.dy = q.destY;
+		item.quad.dw = q.destW;
+		item.quad.dh = q.destH;
+		item.quad.u0 = q.srcX / (float)atlasW;
+		item.quad.v0 = q.srcY / (float)atlasH;
+		item.quad.u1 = (q.srcX + q.srcW) / (float)atlasW;
+		item.quad.v1 = (q.srcY + q.srcH) / (float)atlasH;
+		item.quad.color = PackTextColor(q.color);
+		g_pending.push_back(item);
 	}
 	return true;
 }
@@ -358,29 +344,21 @@ bool QueueTextSolid(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, floa
 	if (!dev || !canvasW || !canvasH || dw <= 0.0f || dh <= 0.0f) return false;
 	SDL_GPUTexture* tex = EnsureTextWhite(dev);
 	if (!tex) return false;
-	PendingGroup* g = FindGroup(nullptr, tex, true, canvasW, canvasH);
-	if (!g) {
-		g_pending.push_back(PendingGroup{});
-		g = &g_pending.back();
-		g->atlas = nullptr;
-		g->tex = tex;
-		g->smooth = true;
-		g->canvasW = canvasW;
-		g->canvasH = canvasH;
-	} else if (g->tex != tex) {
-		g->tex = tex;
-	}
-	PendingQuad p{};
-	p.dx = dx;
-	p.dy = dy;
-	p.dw = dw;
-	p.dh = dh;
-	p.u0 = 0.0f;
-	p.v0 = 0.0f;
-	p.u1 = 1.0f;
-	p.v1 = 1.0f;
-	p.color = PackTextColor(color);
-	g->quads.push_back(p);
+	PendingItem item{};
+	item.tex = tex;
+	item.smooth = true;
+	item.canvasW = canvasW;
+	item.canvasH = canvasH;
+	item.quad.dx = dx;
+	item.quad.dy = dy;
+	item.quad.dw = dw;
+	item.quad.dh = dh;
+	item.quad.u0 = 0.0f;
+	item.quad.v0 = 0.0f;
+	item.quad.u1 = 1.0f;
+	item.quad.v1 = 1.0f;
+	item.quad.color = PackTextColor(color);
+	g_pending.push_back(item);
 	return true;
 }
 
@@ -402,31 +380,49 @@ bool QueueRectOutline(SDL_GPUDevice* dev, unsigned canvasW, unsigned canvasH, fl
 	return true;
 }
 
+bool QueueSpriteQuad(SDL_GPUDevice* dev, SDL_GPUTexture* tex, bool smooth, unsigned canvasW, unsigned canvasH, unsigned texW, unsigned texH, const TextQuad* quad) {
+	if (!dev || !tex || !quad || !canvasW || !canvasH || !texW || !texH) return false;
+	if (quad->destW <= 0.0f || quad->destH <= 0.0f || quad->srcW <= 0.0f || quad->srcH <= 0.0f) return true;
+	PendingItem item{};
+	item.tex = tex;
+	item.smooth = smooth;
+	item.canvasW = canvasW;
+	item.canvasH = canvasH;
+	item.quad.dx = quad->destX;
+	item.quad.dy = quad->destY;
+	item.quad.dw = quad->destW;
+	item.quad.dh = quad->destH;
+	item.quad.u0 = quad->srcX / (float)texW;
+	item.quad.v0 = quad->srcY / (float)texH;
+	item.quad.u1 = (quad->srcX + quad->srcW) / (float)texW;
+	item.quad.v1 = (quad->srcY + quad->srcH) / (float)texH;
+	item.quad.color = PackTextColor(quad->color);
+	g_pending.push_back(item);
+	return true;
+}
+
 bool HasPendingText() {
-	for (auto& g : g_pending) {
-		if (!g.quads.empty()) return true;
-	}
-	return false;
+	return !g_pending.empty();
 }
 
 bool PreparePendingText(SDL_GPUDevice* dev, SDL_GPUCommandBuffer* cmds) {
 	g_staged.clear();
 	g_ranges.clear();
 	if (!dev || !cmds) return false;
-	unsigned total = 0;
-	for (auto& g : g_pending) total += (unsigned)g.quads.size() * 6;
+	unsigned total = (unsigned)g_pending.size() * 6;
 	if (!total) return false;
 	if (!EnsureTextVb(dev, total)) return false;
 	g_staged.reserve(total);
-	for (auto& g : g_pending) {
-		if (g.quads.empty()) continue;
-		DrawRange r{};
-		r.tex = g.tex;
-		r.smooth = g.smooth;
-		r.first = (unsigned)g_staged.size();
-		for (auto& q : g.quads) EmitQuad(g_staged, g.canvasW, g.canvasH, q);
-		r.count = (unsigned)g_staged.size() - r.first;
-		if (r.count) g_ranges.push_back(r);
+	for (auto& item : g_pending) {
+		if (g_ranges.empty() || g_ranges.back().tex != item.tex || g_ranges.back().smooth != item.smooth) {
+			DrawRange r{};
+			r.tex = item.tex;
+			r.smooth = item.smooth;
+			r.first = (unsigned)g_staged.size();
+			g_ranges.push_back(r);
+		}
+		EmitQuad(g_staged, item.canvasW, item.canvasH, item.quad);
+		g_ranges.back().count += 6;
 	}
 	if (g_staged.empty() || g_ranges.empty()) return false;
 	unsigned bytes = (unsigned)g_staged.size() * (unsigned)sizeof(TextVertex);

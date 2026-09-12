@@ -8,8 +8,6 @@
 
 extern gxRuntime* gx_runtime;
 
-#include <freeimage.h>
-
 static AsmCoder asm_coder;
 
 static thread_local std::string g_lastImageError;
@@ -18,57 +16,9 @@ const std::string& ddUtil::getLastImageError() {
     return g_lastImageError;
 }
 
-bool ddUtil::hasAlphaChannel(const std::string& file) {
-    std::lock_guard<std::mutex> lock(g_freeimage_mutex);
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(file.c_str(), 0);
-    if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(file.c_str());
-    if (fif == FIF_UNKNOWN) return false;
-
-    FIBITMAP* fib = FreeImage_Load(fif, file.c_str(), 0);
-    if (!fib) return false;
-
-    bool has = (FreeImage_IsTransparent(fib) == TRUE) || (FreeImage_GetColorType(fib) == FIC_RGBALPHA);
-    FreeImage_Unload(fib);
-    return has;
-}
-
 bool ddUtil::hasActualAlpha(const std::string& file) {
-    std::lock_guard<std::mutex> lock(g_freeimage_mutex);
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(file.c_str(), 0);
-    if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(file.c_str());
-    if (fif == FIF_UNKNOWN) return false;
-
-    FIBITMAP* fib = FreeImage_Load(fif, file.c_str(), 0);
-    if (!fib) return false;
-
-    if (FreeImage_GetColorType(fib) != FIC_RGBALPHA && !FreeImage_IsTransparent(fib)) {
-        FreeImage_Unload(fib);
-        return false;
-    }
-
-    FIBITMAP* fib32 = (FreeImage_GetBPP(fib) == 32) ? fib : FreeImage_ConvertTo32Bits(fib);
-    if (!fib32) {
-        if (fib32 != fib) FreeImage_Unload(fib);
-        return false;
-    }
-
-    bool hasNonOpaque = false;
-    int w = FreeImage_GetWidth(fib32);
-    int h = FreeImage_GetHeight(fib32);
-    for (int y = 0; y < h && !hasNonOpaque; ++y) {
-        BYTE* bits = FreeImage_GetScanLine(fib32, y);
-        for (int x = 0; x < w; ++x) {
-            BYTE alpha = bits[x * 4 + 3];
-            if (alpha != 255) {
-                hasNonOpaque = true;
-                break;
-            }
-        }
-    }
-
-    if (fib32 != fib) FreeImage_Unload(fib32);
-    else FreeImage_Unload(fib);
-    return hasNonOpaque;
+    auto img = DecodeImageFile(file);
+    return img && img->hasAlpha;
 }
 
 PixelFormat::~PixelFormat() {
@@ -112,10 +62,26 @@ void PixelFormat::setFormat(D3DFORMAT fmt) {
     asm_coder.CodePoint(point_code, depth, amask, rmask, gmask, bmask);
 }
 
-// bruh
-static bool hasRealAlpha(FIBITMAP* fib) {
-    if (FreeImage_IsTransparent(fib) == TRUE) return true;
-    return FreeImage_GetColorType(fib) == FIC_RGBALPHA;
+static std::vector<uint32_t> expandDecoded(const DecodedImage& img, int flags) {
+    std::vector<uint32_t> out((size_t)img.w * (size_t)img.h);
+    bool hasMask = (flags & gxCanvas::CANVAS_TEX_MASK) != 0;
+    bool hasAlpha = (flags & gxCanvas::CANVAS_TEX_ALPHA) != 0;
+    const uint8_t* src = img.rgba.data();
+    for (size_t i = 0, n = out.size(); i < n; ++i) {
+        unsigned r = src[i * 4 + 0], g = src[i * 4 + 1], b = src[i * 4 + 2], a = src[i * 4 + 3];
+        if (hasMask) {
+            unsigned rgb = (r << 16) | (g << 8) | b;
+            out[i] = rgb ? (0xff000000u | rgb) : 0u;
+        }
+        else if (hasAlpha) {
+            if (!img.hasAlpha) a = (r + g + b) / 3;
+            out[i] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+        else {
+            out[i] = 0xff000000u | (r << 16) | (g << 8) | b;
+        }
+    }
+    return out;
 }
 
 static void adjustTexSize(int* width, int* height, IDirect3DDevice9* dev) {
@@ -361,60 +327,17 @@ IDirect3DCubeTexture9* ddUtil::createCubeTextureSurface(int size, int flags, gxG
     return cubeTex;
 }
 
-static void buildMask(FIBITMAP* fib, BYTE* bits, int pitch, int w, int h) {
-    for (int y = 0; y < h; ++y) {
-        BYTE* src = FreeImage_GetScanLine(fib, h - 1 - y);
-        DWORD* dst = (DWORD*)(bits + y * pitch);
-        for (int x = 0; x < w; ++x) {
-            RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-            unsigned rgb = ((unsigned)p->rgbRed << 16) | ((unsigned)p->rgbGreen << 8) | p->rgbBlue;
-            dst[x] = rgb ? (0xff000000 | rgb) : 0;
-        }
-    }
-}
-
-static void buildAlpha(FIBITMAP* fib, BYTE* bits, int pitch, int w, int h, bool whiten) {
-    for (int y = 0; y < h; ++y) {
-        BYTE* src = FreeImage_GetScanLine(fib, h - 1 - y);
-        DWORD* dst = (DWORD*)(bits + y * pitch);
-        for (int x = 0; x < w; ++x) {
-            RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-            unsigned alpha = ((unsigned)p->rgbRed + p->rgbGreen + p->rgbBlue) / 3;
-            unsigned argb = (alpha << 24) | ((unsigned)p->rgbRed << 16) | ((unsigned)p->rgbGreen << 8) | p->rgbBlue;
-            if (whiten) argb |= 0xffffff;
-            dst[x] = argb;
-        }
-    }
-}
-
 IDirect3DSurface9* ddUtil::loadDisplaySurface(const std::string& file, int flags, gxGraphics* gfx) {
-    std::lock_guard<std::mutex> lock(g_freeimage_mutex);
     g_lastImageError.clear();
 
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(file.c_str(), 0);
-    if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(file.c_str());
-    if (fif == FIF_UNKNOWN) { g_lastImageError = "Unknown format: " + file; return nullptr; }
-
-    FIBITMAP* fib = FreeImage_Load(fif, file.c_str(), 0);
-    if (!fib) { g_lastImageError = "Load failed: " + file; return nullptr; }
-
-    FIBITMAP* fib32;
-    if (FreeImage_GetBPP(fib) == 32) {
-        fib32 = fib;
-    }
-    else {
-        fib32 = FreeImage_ConvertTo32Bits(fib);
-        FreeImage_Unload(fib);
-        if (!fib32) { g_lastImageError = "ConvertTo32Bits failed: " + file; return nullptr; }
-    }
-
-    int w = FreeImage_GetWidth(fib32);
-    int h = FreeImage_GetHeight(fib32);
+    std::string decErr;
+    auto img = DecodeImageFile(file, &decErr);
+    if (!img) { g_lastImageError = decErr; return nullptr; }
+    int w = img->w, h = img->h;
 
     IDirect3DSurface9* surf = nullptr;
     if (FAILED(gfx->dir3dDev->CreateOffscreenPlainSurface(w, h, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &surf, nullptr))) {
         g_lastImageError = "CreateOffscreenPlainSurface failed: " + file;
-        FreeImage_Unload(fib32);
         return nullptr;
     }
 
@@ -422,87 +345,46 @@ IDirect3DSurface9* ddUtil::loadDisplaySurface(const std::string& file, int flags
     if (FAILED(surf->LockRect(&lr, nullptr, 0))) {
         g_lastImageError = "LockRect failed: " + file;
         surf->Release();
-        FreeImage_Unload(fib32);
         return nullptr;
     }
 
-    bool hasMask = (flags & gxCanvas::CANVAS_TEX_MASK) != 0;
-    bool hasAlpha = (flags & gxCanvas::CANVAS_TEX_ALPHA) != 0;
-    bool hasActualAlpha = hasRealAlpha(fib32);
+    std::vector<uint32_t> px = expandDecoded(*img, flags);
+    const uint32_t* src = px.data();
     BYTE* bits = (BYTE*)lr.pBits;
-
-    if (hasMask) {
-        buildMask(fib32, bits, lr.Pitch, w, h);
-    }
-    else if (hasAlpha) {
-        if (hasActualAlpha) {
-            for (int y = 0; y < h; ++y) {
-                BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-                DWORD* dst = (DWORD*)(bits + y * lr.Pitch);
-                for (int x = 0; x < w; ++x) {
-                    RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-                    dst[x] = ((DWORD)p->rgbReserved << 24) |
-                        ((DWORD)p->rgbRed << 16) |
-                        ((DWORD)p->rgbGreen << 8) |
-                        p->rgbBlue;
-                }
-            }
-        }
-        else {
-            buildAlpha(fib32, bits, lr.Pitch, w, h, false);
-        }
+    if (lr.Pitch == (int)(w * sizeof(uint32_t))) {
+        memcpy(bits, src, (size_t)w * h * sizeof(uint32_t));
     }
     else {
         for (int y = 0; y < h; ++y) {
-            BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-            DWORD* dst = (DWORD*)(bits + y * lr.Pitch);
-            for (int x = 0; x < w; ++x) {
-                RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-                dst[x] = 0xff000000 | ((DWORD)p->rgbRed << 16) | ((DWORD)p->rgbGreen << 8) | p->rgbBlue;
-            }
+            memcpy(bits + y * lr.Pitch, src + (size_t)y * w, (size_t)w * sizeof(uint32_t));
         }
     }
 
     surf->UnlockRect();
-    FreeImage_Unload(fib32);
     return surf;
 }
 
-bool ddUtil::decodeImageFile(const std::string& file, void** out32, int* outW, int* outH) {
-	FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(file.c_str(), 0);
-	if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(file.c_str());
-	if (fif == FIF_UNKNOWN) return false;
-
-	FIBITMAP* fib = FreeImage_Load(fif, file.c_str(), 0);
-	if (!fib) return false;
-
-	FIBITMAP* fib32;
-	if (FreeImage_GetBPP(fib) == 32) {
-		fib32 = fib;
+static void blitExpanded(const uint32_t* src, int w, int h, BYTE* bits, int pitch, int adjW, int adjH) {
+	int copyW = w < adjW ? w : adjW;
+	int copyH = h < adjH ? h : adjH;
+	for (int y = 0; y < copyH; ++y) {
+		DWORD* dst = (DWORD*)(bits + y * pitch);
+		memcpy(dst, src + (size_t)y * w, (size_t)copyW * sizeof(DWORD));
+		// zero padding so it never bleeds into bilinear samples
+		if (copyW < adjW) memset(dst + copyW, 0, (size_t)(adjW - copyW) * sizeof(DWORD));
 	}
-	else {
-		fib32 = FreeImage_ConvertTo32Bits(fib);
-		FreeImage_Unload(fib);
-	}
-	if (!fib32) return false;
-
-	*out32 = fib32;
-	*outW = FreeImage_GetWidth(fib32);
-	*outH = FreeImage_GetHeight(fib32);
-	return true;
+	for (int y = copyH; y < adjH; ++y) memset(bits + y * pitch, 0, (size_t)adjW * sizeof(DWORD));
 }
 
-static IDirect3DTexture9* textureFromDecodedUnlocked(void* vfib32, int w, int h, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH) {
-	FIBITMAP* fib32 = (FIBITMAP*)vfib32;
+static IDirect3DTexture9* textureFromDecodedUnlocked(const DecodedImage* img, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH) {
+	if (!img || !gfx) return nullptr;
+	int w = img->w, h = img->h;
 	int adjW = w, adjH = h;
 	adjustTexSize(&adjW, &adjH, gfx->dir3dDev);
 	if (outW) *outW = w;
 	if (outH) *outH = h;
 
-	bool hasMask = (flags & gxCanvas::CANVAS_TEX_MASK) != 0;
-	bool hasAlpha = (flags & gxCanvas::CANVAS_TEX_ALPHA) != 0;
 	bool hasMips = (flags & gxCanvas::CANVAS_TEX_MIPMAP) != 0;
-	bool hasActualAlpha = hasRealAlpha(fib32);
 
 	D3DFORMAT fmt = D3DFMT_A8R8G8B8;
 	if (flags & gxCanvas::CANVAS_TEX_HICOLOR) fmt = D3DFMT_A4R4G4B4;
@@ -534,6 +416,8 @@ static IDirect3DTexture9* textureFromDecodedUnlocked(void* vfib32, int w, int h,
 	HRESULT hr = dev->CreateTexture(adjW, adjH, mipLevels, usage, fmt, pool, &tex, nullptr);
 	if (FAILED(hr)) return nullptr;
 
+	std::vector<uint32_t> px = expandDecoded(*img, flags);
+
 	if (renderTarget) {
 		IDirect3DSurface9* tempSurf = nullptr;
 		hr = dev->CreateOffscreenPlainSurface(adjW, adjH, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &tempSurf, nullptr);
@@ -550,52 +434,7 @@ static IDirect3DTexture9* textureFromDecodedUnlocked(void* vfib32, int w, int h,
 			return nullptr;
 		}
 
-		BYTE* bits = (BYTE*)lr.pBits;
-		int pitch = lr.Pitch;
-
-		if (hasMask) {
-			buildMask(fib32, bits, pitch, w, h);
-		}
-		else if (hasAlpha) {
-			if (hasActualAlpha) {
-				for (int y = 0; y < h && y < adjH; ++y) {
-					BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-					DWORD* dst = (DWORD*)(bits + y * pitch);
-					for (int x = 0; x < w && x < adjW; ++x) {
-						RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-						dst[x] = ((DWORD)p->rgbReserved << 24) |
-							((DWORD)p->rgbRed << 16) |
-							((DWORD)p->rgbGreen << 8) |
-							p->rgbBlue;
-					}
-					// zero padding so it never bleeds into bilinear samples
-					if (w < adjW) memset(dst + w, 0, (adjW - w) * sizeof(DWORD));
-				}
-				for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-			}
-			else {
-				buildAlpha(fib32, bits, pitch, w, h, false);
-				if (w < adjW) {
-					for (int y = 0; y < h; ++y) {
-						memset(bits + y * pitch + w * sizeof(DWORD), 0, (adjW - w) * sizeof(DWORD));
-					}
-				}
-				for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-			}
-		}
-		else {
-			for (int y = 0; y < h && y < adjH; ++y) {
-				BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-				DWORD* dst = (DWORD*)(bits + y * pitch);
-				for (int x = 0; x < w && x < adjW; ++x) {
-					RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-					dst[x] = 0xff000000 | ((DWORD)p->rgbRed << 16) | ((DWORD)p->rgbGreen << 8) | p->rgbBlue;
-				}
-				// zero padding so it never bleeds into bilinear samples
-				if (w < adjW) memset(dst + w, 0, (adjW - w) * sizeof(DWORD));
-			}
-			for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-		}
+		blitExpanded(px.data(), w, h, (BYTE*)lr.pBits, lr.Pitch, adjW, adjH);
 
 		tempSurf->UnlockRect();
 
@@ -622,50 +461,7 @@ static IDirect3DTexture9* textureFromDecodedUnlocked(void* vfib32, int w, int h,
 			return nullptr;
 		}
 
-		BYTE* bits = (BYTE*)lr.pBits;
-		int pitch = lr.Pitch;
-
-		if (hasMask) {
-			buildMask(fib32, bits, pitch, w, h);
-		}
-		else if (hasAlpha) {
-			if (hasActualAlpha) {
-				for (int y = 0; y < h && y < adjH; ++y) {
-					BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-					DWORD* dst = (DWORD*)(bits + y * pitch);
-					for (int x = 0; x < w && x < adjW; ++x) {
-						RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-						dst[x] = ((DWORD)p->rgbReserved << 24) |
-							((DWORD)p->rgbRed << 16) |
-							((DWORD)p->rgbGreen << 8) |
-							p->rgbBlue;
-					}
-					if (w < adjW) memset(dst + w, 0, (adjW - w) * sizeof(DWORD));
-				}
-				for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-			}
-			else {
-				buildAlpha(fib32, bits, pitch, w, h, false);
-				if (w < adjW) {
-					for (int y = 0; y < h; ++y) {
-						memset(bits + y * pitch + w * sizeof(DWORD), 0, (adjW - w) * sizeof(DWORD));
-					}
-				}
-				for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-			}
-		}
-		else {
-			for (int y = 0; y < h && y < adjH; ++y) {
-				BYTE* src = FreeImage_GetScanLine(fib32, h - 1 - y);
-				DWORD* dst = (DWORD*)(bits + y * pitch);
-				for (int x = 0; x < w && x < adjW; ++x) {
-					RGBQUAD* p = (RGBQUAD*)(src + x * 4);
-					dst[x] = 0xff000000 | ((DWORD)p->rgbRed << 16) | ((DWORD)p->rgbGreen << 8) | p->rgbBlue;
-				}
-				if (w < adjW) memset(dst + w, 0, (adjW - w) * sizeof(DWORD));
-			}
-			for (int y = h; y < adjH; ++y) memset(bits + y * pitch, 0, adjW * sizeof(DWORD));
-		}
+		blitExpanded(px.data(), w, h, (BYTE*)lr.pBits, lr.Pitch, adjW, adjH);
 
 		tex->UnlockRect(0);
 
@@ -677,9 +473,8 @@ static IDirect3DTexture9* textureFromDecodedUnlocked(void* vfib32, int w, int h,
 	return tex;
 }
 
-IDirect3DTexture9* ddUtil::textureFromDecoded(void* vfib32, int w, int h, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH) {
-	std::lock_guard<std::mutex> lock(g_freeimage_mutex);
-	return textureFromDecodedUnlocked(vfib32, w, h, flags, gfx, renderTarget, outW, outH);
+IDirect3DTexture9* ddUtil::textureFromDecoded(const DecodedImage* img, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH) {
+	return textureFromDecodedUnlocked(img, flags, gfx, renderTarget, outW, outH);
 }
 
 IDirect3DTexture9* ddUtil::loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx) {
@@ -691,17 +486,14 @@ IDirect3DTexture9* ddUtil::loadTextureSurface(const std::string& file, int flags
 }
 
 IDirect3DTexture9* ddUtil::loadTextureSurface(const std::string& file, int flags, gxGraphics* gfx, bool renderTarget, int* outW, int* outH) {
-	std::lock_guard<std::mutex> lock(g_freeimage_mutex);
 	g_lastImageError.clear();
 
-	void* fib32 = nullptr;
-	int w = 0, h = 0;
-	if (!decodeImageFile(file, &fib32, &w, &h)) {
-		g_lastImageError = "Load failed: " + file;
+	std::string decErr;
+	auto img = DecodeImageFile(file, &decErr);
+	if (!img) {
+		g_lastImageError = decErr;
 		return nullptr;
 	}
 
-	IDirect3DTexture9* tex = textureFromDecodedUnlocked(fib32, w, h, flags, gfx, renderTarget, outW, outH);
-	FreeImage_Unload((FIBITMAP*)fib32);
-	return tex;
+	return textureFromDecodedUnlocked(img.get(), flags, gfx, renderTarget, outW, outH);
 }
